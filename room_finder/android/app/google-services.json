@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "97436806148",
+    "project_id": "roomfinder-cec5a",
+    "storage_bucket": "roomfinder-cec5a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:97436806148:android:6ccf566b4b163f0e511951",
+        "android_client_info": {
+          "package_name": "com.example.room_finder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVyjv3z0_DWSnAp3iIhuBDFRE_LRVr920"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

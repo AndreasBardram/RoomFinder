@@ -12,6 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   fluentui_system_icons: ^1.1.227
+  firebase_core: ^2.4.0
 
   cupertino_icons: ^1.0.6
 
