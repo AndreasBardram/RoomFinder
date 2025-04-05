@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// Make sure these imports match your file/folder structure
 import '../utils/navigation.dart';
 import '../components/custom_styles.dart';
 
@@ -69,11 +70,9 @@ class _LoginScreenState extends State<LoginScreen> {
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
           'email': email,
           'createdAt': DateTime.now(),
-          // Add more fields as needed
         });
 
         _showMessage('Account created! Logging you in...');
-        // Optionally navigate to main screen or do something else
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MainScreen()),
@@ -86,7 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// A simple utility to show a snackbar or dialog message
+  /// Skip login (for testing)
+  void _skipLogin() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const MainScreen()),
+    );
+  }
+
+  /// Show a snackbar
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -94,78 +101,107 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(), // Hide keyboard on tap
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const FlutterLogo(size: 72),
-                  const SizedBox(height: 24),
+      // Optional: give your login screen a nice background gradient
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white,
+              Colors.blue.shade50, // Choose whatever color(s) you want
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(), // Hide keyboard on tap
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Email field
+                    TextField(
+                      controller: _usernameController,
+                      decoration: customInputDecoration(labelText: 'Email'),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
 
-                  // Username/Email field
-                  TextField(
-                    controller: _usernameController,
-                    decoration: customInputDecoration(labelText: 'Email'),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
+                    // Password field
+                    TextField(
+                      controller: _passwordController,
+                      decoration: customInputDecoration(labelText: 'Password'),
+                      obscureText: true,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 24),
 
-                  // Password field
-                  TextField(
-                    controller: _passwordController,
-                    decoration: customInputDecoration(labelText: 'Password'),
-                    obscureText: true,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 14),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Login button
-                  CustomButtonContainer(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15.0),
-                      child: ElevatedButton(
-                        style: customElevatedButtonStyle(),
-                        onPressed: _login,
-                        child: Text(
-                          'Log In',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontSize: 16),
+                    // Login button
+                    CustomButtonContainer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15.0),
+                        child: ElevatedButton(
+                          style: customElevatedButtonStyle(),
+                          onPressed: _login,
+                          child: Text(
+                            'Log In',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontSize: 16),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Create account button
-                  CustomButtonContainer(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15.0),
-                      child: ElevatedButton(
-                        style: customElevatedButtonStyle(),
-                        onPressed: _createAccount,
-                        child: Text(
-                          'Create Account',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontSize: 16),
+                    // Create account button
+                    CustomButtonContainer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15.0),
+                        child: ElevatedButton(
+                          style: customElevatedButtonStyle(),
+                          onPressed: _createAccount,
+                          child: Text(
+                            'Create Account',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontSize: 16),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    // Skip login button (testing)
+                    CustomButtonContainer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15.0),
+                        child: ElevatedButton(
+                          style: customElevatedButtonStyle(),
+                          onPressed: _skipLogin,
+                          child: Text(
+                            'Skip',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
