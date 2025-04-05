@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../utils/navigation.dart';   
-import '../components/custom_styles.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/navigation.dart';
+import '../components/custom_styles.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -10,41 +12,104 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Controllers to get user input from text fields
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _login() {
-    // Here you would typically call some auth service, etc.
-    // We assume successful login for example:
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainScreen()),
-    );
+  /// Log in the user
+  Future<void> _login() async {
+    final email = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Please enter both email and password.');
+      return;
+    }
+
+    try {
+      // Attempt sign in
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Navigate to main screen on success
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MainScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      _showMessage('Login failed: ${e.message}');
+    } catch (e) {
+      _showMessage('An unexpected error occurred.');
+    }
+  }
+
+  /// Create a new account, then save user info to Firestore
+  Future<void> _createAccount() async {
+    final email = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Please enter email and password.');
+      return;
+    }
+
+    try {
+      // Create the user in Firebase Auth
+      UserCredential userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Save additional user details in Firestore
+      final uid = userCredential.user?.uid;
+      if (uid != null) {
+        // You can store username, signUpTime, etc.
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'email': email,
+          'createdAt': DateTime.now(),
+          // Add more fields as needed
+        });
+
+        _showMessage('Account created! Logging you in...');
+        // Optionally navigate to main screen or do something else
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      _showMessage('Account creation failed: ${e.message}');
+    } catch (e) {
+      _showMessage('An unexpected error occurred.');
+    }
+  }
+
+  /// A simple utility to show a snackbar or dialog message
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Using SafeArea if you want to avoid status-bar overlap
       body: SafeArea(
         child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),  // Hide keyboard
+          onTap: () => FocusScope.of(context).unfocus(), // Hide keyboard on tap
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // App logo or title
                   const FlutterLogo(size: 72),
                   const SizedBox(height: 24),
 
-                  // Username field
+                  // Username/Email field
                   TextField(
                     controller: _usernameController,
-                    decoration:
-                        customInputDecoration(labelText: 'Username'),
+                    decoration: customInputDecoration(labelText: 'Email'),
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -55,8 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Password field
                   TextField(
                     controller: _passwordController,
-                    decoration:
-                        customInputDecoration(labelText: 'Password'),
+                    decoration: customInputDecoration(labelText: 'Password'),
                     obscureText: true,
                     style: Theme.of(context)
                         .textTheme
@@ -65,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Login button with same styling as your "Generate" button
+                  // Login button
                   CustomButtonContainer(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(15.0),
@@ -74,6 +138,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: _login,
                         child: Text(
                           'Log In',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Create account button
+                  CustomButtonContainer(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15.0),
+                      child: ElevatedButton(
+                        style: customElevatedButtonStyle(),
+                        onPressed: _createAccount,
+                        child: Text(
+                          'Create Account',
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
