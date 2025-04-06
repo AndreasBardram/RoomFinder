@@ -8,7 +8,7 @@ import '../screens/setting_screen.dart';
 class MainScreen extends StatefulWidget {
   final int initialIndex;
 
-  const MainScreen({this.initialIndex = 0, Key? key}) : super(key: key);
+  const MainScreen({Key? key, this.initialIndex = 0}) : super(key: key);
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -16,6 +16,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -23,12 +24,7 @@ class _MainScreenState extends State<MainScreen> {
     _currentIndex = widget.initialIndex;  
   }
 
-  void onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
-
+  /// List of pages for each bottom nav item
   List<Widget> _buildScreens() {
     return const [
       HomeScreen(),
@@ -38,41 +34,77 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
+  /// Handle tab presses
+  void onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  /// Optional function to show/hide loading overlay
+  void setLoading(bool loading) {
+    setState(() {
+      _isLoading = loading;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use IndexedStack to keep state in each tab
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _buildScreens(),
-      ),
-
-      // BottomNavigationBar with 4 items
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: onTabTapped,
-        showUnselectedLabels: true,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey[600],
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.home_24_regular),
-            label: 'Home',
+      // A Stack so we can overlay a loading screen if needed
+      body: Stack(
+        children: [
+          // Keep each page's state with an IndexedStack
+          IndexedStack(
+            index: _currentIndex,
+            children: _buildScreens(),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.people_24_regular),
-            label: 'Roommate',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.building_home_24_regular),
-            label: 'Apartment',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.settings_24_regular),
-            label: 'Settings',
-          ),
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
         ],
       ),
+      // Show BottomNavigationBar unless loading is active
+      bottomNavigationBar: _isLoading
+          ? const SizedBox.shrink()
+          : BottomNavigationBar(
+              // Use fixed type so icons/labels don’t shift or resize
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              onTap: onTabTapped,
+              showUnselectedLabels: true,
+              selectedItemColor: Colors.grey[1000],
+              unselectedItemColor: Colors.grey[600],
+
+              // Force both selected & unselected icons to the same size
+              selectedIconTheme: const IconThemeData(size: 25),
+              unselectedIconTheme: const IconThemeData(size: 25),
+
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.home_24_regular),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.people_24_regular),
+                  label: 'Roommate',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.building_home_24_regular),
+                  label: 'Apartment',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.settings_24_regular),
+                  label: 'Settings',
+                ),
+              ],
+            ),
     );
   }
 }

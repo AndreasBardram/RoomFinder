@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// Make sure these imports match your file/folder structure
+// Replace with your actual file paths
 import '../utils/navigation.dart';
 import '../components/custom_styles.dart';
 
@@ -16,7 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  /// Log in the user
+  /// Log in the user (must already exist in Firebase Auth)
   Future<void> _login() async {
     final email = _usernameController.text.trim();
     final password = _passwordController.text.trim();
@@ -27,25 +27,27 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Attempt sign in
+      // Attempt sign in with Firebase Auth
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Navigate to main screen on success
+      // Navigate to main screen if successful
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const MainScreen()),
       );
     } on FirebaseAuthException catch (e) {
+      // Common sign-in errors (e.g. user not found, wrong password)
       _showMessage('Login failed: ${e.message}');
     } catch (e) {
+      // Other unexpected errors
       _showMessage('An unexpected error occurred.');
     }
   }
 
-  /// Create a new account, then save user info to Firestore
+  /// Create a new account in Firebase Auth, then save to Firestore
   Future<void> _createAccount() async {
     final email = _usernameController.text.trim();
     final password = _passwordController.text.trim();
@@ -56,36 +58,39 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Create the user in Firebase Auth
+      // 1) Create the user in Firebase Auth
       UserCredential userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Save additional user details in Firestore
+      // 2) Save additional user details in Firestore
       final uid = userCredential.user?.uid;
       if (uid != null) {
-        // You can store username, signUpTime, etc.
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
           'email': email,
           'createdAt': DateTime.now(),
         });
 
         _showMessage('Account created! Logging you in...');
+
+        // 3) Navigate to the main screen
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       }
     } on FirebaseAuthException catch (e) {
+      // E.g. email already in use, invalid email format, weak password
       _showMessage('Account creation failed: ${e.message}');
     } catch (e) {
+      // Other unexpected errors
       _showMessage('An unexpected error occurred.');
     }
   }
 
-  /// Skip login (for testing)
+  /// For testing: skip login
   void _skipLogin() {
     Navigator.pushReplacement(
       context,
@@ -93,15 +98,17 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Show a snackbar
+  /// Show a SnackBar with a message
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Optional: give your login screen a nice background gradient
+      // Optional background gradient
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -109,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
             end: Alignment.bottomCenter,
             colors: [
               Colors.white,
-              Colors.blue.shade50, // Choose whatever color(s) you want
+              Colors.blue.shade50,
             ],
           ),
         ),
@@ -145,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Login button
+                    // Log In button
                     CustomButtonContainer(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(15.0),
@@ -164,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Create account button
+                    // Create Account button
                     CustomButtonContainer(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(15.0),
@@ -183,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Skip login button (testing)
+                    // Skip button for testing
                     CustomButtonContainer(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(15.0),
