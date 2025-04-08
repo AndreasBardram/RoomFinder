@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import '../screens/home_screen.dart';
-import '../screens/find_roommate_screen.dart';
-import '../screens/find_apartment_screen.dart';
-import '../screens/setting_screen.dart';
+
+import '../screens/find_roommates_screen.dart';
+import '../screens/your_profile_screen.dart';
+import '../screens/settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
 
-  const MainScreen({Key? key, this.initialIndex = 0}) : super(key: key);
+  // Set initialIndex to 1 so that the "Find Roommates" tab (middle) is active upon login.
+  const MainScreen({Key? key, this.initialIndex = 1}) : super(key: key);
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -21,27 +22,26 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;  
+    _currentIndex = widget.initialIndex;
   }
 
-  /// List of pages for each bottom nav item
+  /// Returns the list of screens for the bottom navigation bar.
   List<Widget> _buildScreens() {
     return const [
-      HomeScreen(),
-      FindRoommateScreen(),
-      FindApartmentScreen(),
-      SettingsScreen(),
+      YourProfileScreen(),   // Index 0: Your Profile
+      FindRoommatesScreen(),  // Index 1: Find Roommates
+      SettingsScreen(),       // Index 2: Settings
     ];
   }
 
-  /// Handle tab presses
+  /// Handle bottom nav item taps
   void onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
     });
   }
 
-  /// Optional function to show/hide loading overlay
+  /// Optional function to show/hide a loading overlay
   void setLoading(bool loading) {
     setState(() {
       _isLoading = loading;
@@ -51,10 +51,10 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // A Stack so we can overlay a loading screen if needed
+      // Use a Stack to allow overlaying a loading indicator.
       body: Stack(
         children: [
-          // Keep each page's state with an IndexedStack
+          // Preserve the state of each screen using an IndexedStack.
           IndexedStack(
             index: _currentIndex,
             children: _buildScreens(),
@@ -70,34 +70,26 @@ class _MainScreenState extends State<MainScreen> {
             ),
         ],
       ),
-      // Show BottomNavigationBar unless loading is active
+      // Bottom navigation bar (hidden when loading).
       bottomNavigationBar: _isLoading
           ? const SizedBox.shrink()
           : BottomNavigationBar(
-              // Use fixed type so icons/labels don’t shift or resize
               type: BottomNavigationBarType.fixed,
               currentIndex: _currentIndex,
               onTap: onTabTapped,
               showUnselectedLabels: true,
               selectedItemColor: Colors.grey[1000],
               unselectedItemColor: Colors.grey[600],
-
-              // Force both selected & unselected icons to the same size
               selectedIconTheme: const IconThemeData(size: 25),
               unselectedIconTheme: const IconThemeData(size: 25),
-
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.home_24_regular),
-                  label: 'Home',
+                  icon: Icon(FluentIcons.person_accounts_24_regular),
+                  label: 'Profile',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.people_24_regular),
-                  label: 'Roommate',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.building_home_24_regular),
-                  label: 'Apartment',
+                  icon: Icon(FluentIcons.search_24_regular),
+                  label: 'Find Roommates',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.settings_24_regular),

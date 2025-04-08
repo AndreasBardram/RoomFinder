@@ -33,10 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
-      // Navigate to main screen if successful
+      // Navigate to MainScreen with Find Roommates active (initialIndex = 1)
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
+        MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
       );
     } on FirebaseAuthException catch (e) {
       // Common sign-in errors (e.g. user not found, wrong password)
@@ -75,10 +75,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
         _showMessage('Account created! Logging you in...');
 
-        // 3) Navigate to the main screen
+        // 3) Navigate to the MainScreen with Find Roommates active
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
+          MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
         );
       }
     } on FirebaseAuthException catch (e) {
@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _skipLogin() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const MainScreen()),
+      MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
     );
   }
 
