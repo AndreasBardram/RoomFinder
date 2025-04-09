@@ -28,9 +28,9 @@ class _MainScreenState extends State<MainScreen> {
   /// Returns the list of screens for the bottom navigation bar.
   List<Widget> _buildScreens() {
     return const [
-      YourProfileScreen(),   // Index 0: Your Profile
-      FindRoommatesScreen(),  // Index 1: Find Roommates
-      SettingsScreen(),       // Index 2: Settings
+      SettingsScreen(),       // Index 0: Settings (swapped position)
+      FindRoommatesScreen(),   // Index 1: Find Roommates
+      YourProfileScreen(),     // Index 2: Profile (swapped position)
     ];
   }
 
@@ -84,16 +84,16 @@ class _MainScreenState extends State<MainScreen> {
               unselectedIconTheme: const IconThemeData(size: 25),
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.person_accounts_24_regular),
-                  label: 'Profile',
+                  icon: Icon(FluentIcons.settings_24_regular),
+                  label: 'Settings',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.search_24_regular),
                   label: 'Find Roommates',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.settings_24_regular),
-                  label: 'Settings',
+                  icon: Icon(FluentIcons.person_24_regular),
+                  label: 'Profile',
                 ),
               ],
             ),
