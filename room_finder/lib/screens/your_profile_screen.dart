@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../components/custom_styles.dart'; // Ensure this path is correct.
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({Key? key}) : super(key: key);
@@ -10,7 +11,12 @@ class YourProfileScreen extends StatefulWidget {
 }
 
 class _YourProfileScreenState extends State<YourProfileScreen> {
-  /// Uploads basic profile info (currently, just the email address) to Firestore.
+  // Controllers for the additional input fields.
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _instagramController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+
+  /// Uploads basic profile info (email, first name, Instagram link, and description) to Firestore.
   Future<void> _uploadProfile() async {
     // Get the current user from Firebase Auth.
     final User? user = FirebaseAuth.instance.currentUser;
@@ -21,13 +27,19 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
       return;
     }
 
-    // Extract the email; if not available, default to a placeholder text.
+    // Extract values from the authenticated user and input fields.
     final String email = user.email ?? "No email provided";
+    final String firstName = _firstNameController.text.trim();
+    final String instagram = _instagramController.text.trim();
+    final String description = _descriptionController.text.trim();
 
     try {
-      // Write (or merge) the user's email address and a timestamp to Firestore.
+      // Write (or merge) the user's data to the "users" collection in Firestore.
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'email': email,
+        'firstName': firstName,
+        'instagram': instagram,
+        'description': description,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -43,25 +55,65 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
   }
 
   @override
+  void dispose() {
+    // Dispose of the controllers when the widget is removed.
+    _firstNameController.dispose();
+    _instagramController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Profile'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('Profile Screen Placeholder'),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _uploadProfile,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Column(
+            children: [
+              // Image placeholder: a CircleAvatar with an icon.
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey[300],
+                child: const Icon(
+                  Icons.person,
+                  size: 50,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Input field for first name.
+              TextField(
+                controller: _firstNameController,
+                decoration: customInputDecoration(labelText: 'First Name'),
+              ),
+              const SizedBox(height: 16),
+              // Input field for Instagram link.
+              TextField(
+                controller: _instagramController,
+                decoration: customInputDecoration(labelText: 'Instagram Link'),
+              ),
+              const SizedBox(height: 16),
+              // Multiline input field for description.
+              TextField(
+                controller: _descriptionController,
+                decoration: customInputDecoration(labelText: 'Description'),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 20),
+              // Button to trigger the _uploadProfile function.
+              ElevatedButton(
+                onPressed: _uploadProfile,
                 child: const Text(
-                'Upload Profile Info',
-                style: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
-                )
-            ),
-          ],
+                  'Upload Profile Info',
+                  style: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
