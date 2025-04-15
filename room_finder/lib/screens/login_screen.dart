@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 // Replace with your actual file paths
 import '../utils/navigation.dart';
 import '../components/custom_styles.dart';
+import 'create_account_screen.dart'; // Import the new account creation screen
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -47,47 +47,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Create a new account in Firebase Auth, then save to Firestore
-  Future<void> _createAccount() async {
-    final email = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter email and password.');
-      return;
-    }
-
-    try {
-      // 1) Create the user in Firebase Auth
-      UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // 2) Save additional user details in Firestore
-      final uid = userCredential.user?.uid;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'email': email,
-          'createdAt': DateTime.now(),
-        });
-
-        _showMessage('Account created! Logging you in...');
-
-        // 3) Navigate to the MainScreen with Find Roommates active
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      // E.g. email already in use, invalid email format, weak password
-      _showMessage('Account creation failed: ${e.message}');
-    } catch (e) {
-      // Other unexpected errors
-      _showMessage('An unexpected error occurred.');
-    }
+  /// Show a SnackBar with a message
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   /// For testing: skip login
@@ -95,13 +59,6 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
-    );
-  }
-
-  /// Show a SnackBar with a message
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
     );
   }
 
@@ -139,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ?.copyWith(fontSize: 14),
                     ),
                     const SizedBox(height: 16),
-
                     // Password field
                     TextField(
                       controller: _passwordController,
@@ -151,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ?.copyWith(fontSize: 14),
                     ),
                     const SizedBox(height: 24),
-
                     // Log In button
                     CustomButtonContainer(
                       child: ClipRRect(
@@ -170,14 +125,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Create Account button
+                    // Create Account button navigates to the CreateAccountScreen
                     CustomButtonContainer(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(15.0),
                         child: ElevatedButton(
                           style: customElevatedButtonStyle(),
-                          onPressed: _createAccount,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const CreateAccountScreen()),
+                            );
+                          },
                           child: Text(
                             'Create Account',
                             style: Theme.of(context)
@@ -189,7 +150,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     // Skip button for testing
                     CustomButtonContainer(
                       child: ClipRRect(

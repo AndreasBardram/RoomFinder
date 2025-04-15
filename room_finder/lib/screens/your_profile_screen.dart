@@ -16,6 +16,37 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
   final TextEditingController _instagramController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
+  // State variables to hold profile info fetched from Firestore.
+  String _firstName = '';
+  int? _age; // Age is stored as an integer
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  /// Loads the profile data from Firestore and updates the state.
+  Future<void> _loadProfile() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        setState(() {
+          _firstName = data?['firstName'] ?? '';
+          _age = data?['age']; // Assumes age is stored as an integer
+          // Optionally pre-fill the profile field with the loaded data.
+          _firstNameController.text = _firstName;
+        });
+      }
+    } catch (error) {
+      print("Failed to load profile: $error");
+    }
+  }
+
   /// Uploads basic profile info (email, first name, Instagram link, and description) to Firestore.
   Future<void> _uploadProfile() async {
     // Get the current user from Firebase Auth.
@@ -74,15 +105,37 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
         child: Center(
           child: Column(
             children: [
-              // Image placeholder: a CircleAvatar with an icon.
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey[300],
-                child: const Icon(
-                  Icons.person,
-                  size: 50,
-                  color: Colors.white,
-                ),
+              // Image placeholder with overlay: a Stack with a CircleAvatar and text.
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.grey[300],
+                    child: const Icon(
+                      Icons.person,
+                      size: 50,
+                      color: Colors.white,
+                    ),
+                  ),
+                  // Overlay with user's first name and age (if available)
+                  if (_firstName.isNotEmpty || _age != null)
+                    Positioned(
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        color: Colors.white.withOpacity(0.7),
+                        child: Text(
+                          "$_firstName${_age != null ? ', $_age' : ''}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 20),
               // Input field for first name.
