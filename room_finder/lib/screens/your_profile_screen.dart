@@ -1,7 +1,9 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/custom_styles.dart'; // Ensure this path is correct.
+import 'settings_screen.dart'; // Import the Settings screen
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({Key? key}) : super(key: key);
@@ -99,6 +101,18 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Profile'),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.settings_24_regular),
+            onPressed: () {
+              // Navigate to the Settings screen when the settings icon is pressed
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

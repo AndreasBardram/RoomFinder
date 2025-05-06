@@ -3,7 +3,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../screens/find_roommates_screen.dart';
 import '../screens/your_profile_screen.dart';
-import '../screens/settings_screen.dart';
 import '../screens/create_listing_screen.dart';  // Import the new screen
 
 class MainScreen extends StatefulWidget {
@@ -29,10 +28,9 @@ class _MainScreenState extends State<MainScreen> {
   /// Returns the list of screens for the bottom navigation bar.
   List<Widget> _buildScreens() {
     return const [
-      SettingsScreen(),        // Index 0: Settings
-      FindRoommatesScreen(),    // Index 1: Find Roommates
-      CreateListingScreen(),    // Index 2: Create Listing (new)
-      YourProfileScreen(),      // Index 3: Profile
+      FindRoommatesScreen(),    // Index 0: Find Roommates
+      CreateListingScreen(),    // Index 1: Create Listing (new)
+      YourProfileScreen(),      // Index 2: Profile
     ];
   }
 
@@ -85,10 +83,6 @@ class _MainScreenState extends State<MainScreen> {
               selectedIconTheme: const IconThemeData(size: 25),
               unselectedIconTheme: const IconThemeData(size: 25),
               items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.settings_24_regular),
-                  label: 'Settings',
-                ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.search_24_regular),
                   label: 'Find Roommates',
