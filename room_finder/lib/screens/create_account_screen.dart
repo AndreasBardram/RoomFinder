@@ -5,7 +5,7 @@ import '../components/custom_styles.dart';
 import '../utils/navigation.dart'; // For navigating to MainScreen after creation
 
 class CreateAccountScreen extends StatefulWidget {
-  const CreateAccountScreen({Key? key}) : super(key: key);
+  const CreateAccountScreen({super.key});
 
   @override
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();

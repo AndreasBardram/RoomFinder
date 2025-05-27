@@ -48,11 +48,11 @@ class CustomButtonContainer extends StatelessWidget {
   final EdgeInsets? margin;
 
   const CustomButtonContainer({
-    Key? key,
+    super.key,
     required this.child,
     this.height = 50,
     this.margin,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

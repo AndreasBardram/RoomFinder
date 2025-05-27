@@ -9,7 +9,7 @@ class MainScreen extends StatefulWidget {
   final int initialIndex;
 
   // Set initialIndex to 1 so that the "Find Roommates" tab (middle) is active upon login.
-  const MainScreen({Key? key, this.initialIndex = 1}) : super(key: key);
+  const MainScreen({super.key, this.initialIndex = 1});
 
   @override
   State<MainScreen> createState() => _MainScreenState();

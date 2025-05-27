@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'settings_screen.dart'; // Import the Settings screen
 
 class FindRoommatesScreen extends StatelessWidget {
-  const FindRoommatesScreen({Key? key}) : super(key: key);
+  const FindRoommatesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

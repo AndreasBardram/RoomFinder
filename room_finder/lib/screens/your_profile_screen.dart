@@ -6,7 +6,7 @@ import '../components/custom_styles.dart'; // Ensure this path is correct.
 import 'settings_screen.dart'; // Import the Settings screen
 
 class YourProfileScreen extends StatefulWidget {
-  const YourProfileScreen({Key? key}) : super(key: key);
+  const YourProfileScreen({super.key});
 
   @override
   State<YourProfileScreen> createState() => _YourProfileScreenState();

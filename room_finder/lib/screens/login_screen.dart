@@ -6,7 +6,7 @@ import '../components/custom_styles.dart';
 import 'create_account_screen.dart'; // Import the new account creation screen
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();

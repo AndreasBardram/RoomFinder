@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'settings_screen.dart'; // Import the Settings screen
 
 class CreateListingScreen extends StatelessWidget {
-  const CreateListingScreen({Key? key}) : super(key: key);
+  const CreateListingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
