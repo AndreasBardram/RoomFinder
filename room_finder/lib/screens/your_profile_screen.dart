@@ -13,14 +13,18 @@ class YourProfileScreen extends StatefulWidget {
 }
 
 class _YourProfileScreenState extends State<YourProfileScreen> {
-  // Controllers for the additional input fields.
+  // Controllers for input fields.
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _instagramController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
+  // NEW: Controller for Hobbies
+  final TextEditingController _hobbiesController = TextEditingController();
+
   // State variables to hold profile info fetched from Firestore.
   String _firstName = '';
-  int? _age; // Age is stored as an integer
+  int? _age;
+  String _hobbies = ''; // NEW: State variable
 
   @override
   void initState() {
@@ -40,8 +44,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
         setState(() {
           _firstName = data?['firstName'] ?? '';
           _age = data?['age']; // Assumes age is stored as an integer
-          // Optionally pre-fill the profile field with the loaded data.
+          _hobbies = data?['hobbies'] ?? ''; // NEW: Load hobbies
           _firstNameController.text = _firstName;
+          _hobbiesController.text = _hobbies; // NEW: Pre-fill hobbies field
         });
       }
     } catch (error) {
@@ -49,9 +54,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     }
   }
 
-  /// Uploads basic profile info (email, first name, Instagram link, and description) to Firestore.
+  /// Uploads profile info (email, first name, Instagram link, description, hobbies) to Firestore.
   Future<void> _uploadProfile() async {
-    // Get the current user from Firebase Auth.
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,19 +64,19 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
       return;
     }
 
-    // Extract values from the authenticated user and input fields.
     final String email = user.email ?? "No email provided";
     final String firstName = _firstNameController.text.trim();
     final String instagram = _instagramController.text.trim();
     final String description = _descriptionController.text.trim();
+    final String hobbies = _hobbiesController.text.trim(); // NEW
 
     try {
-      // Write (or merge) the user's data to the "users" collection in Firestore.
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'email': email,
         'firstName': firstName,
         'instagram': instagram,
         'description': description,
+        'hobbies': hobbies, // NEW
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -89,10 +93,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
 
   @override
   void dispose() {
-    // Dispose of the controllers when the widget is removed.
     _firstNameController.dispose();
     _instagramController.dispose();
     _descriptionController.dispose();
+    _hobbiesController.dispose(); // NEW
     super.dispose();
   }
 
@@ -162,6 +166,12 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
               TextField(
                 controller: _instagramController,
                 decoration: customInputDecoration(labelText: 'Instagram Link'),
+              ),
+              const SizedBox(height: 16),
+              // NEW: Input field for Hobbies.
+              TextField(
+                controller: _hobbiesController,
+                decoration: customInputDecoration(labelText: 'Hobbies'),
               ),
               const SizedBox(height: 16),
               // Multiline input field for description.
