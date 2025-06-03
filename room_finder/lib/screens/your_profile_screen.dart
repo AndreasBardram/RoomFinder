@@ -2,8 +2,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../components/custom_styles.dart'; // Ensure this path is correct.
-import 'settings_screen.dart'; // Import the Settings screen
+import '../components/custom_styles.dart';
+import 'settings_screen.dart';
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({super.key});
@@ -13,18 +13,15 @@ class YourProfileScreen extends StatefulWidget {
 }
 
 class _YourProfileScreenState extends State<YourProfileScreen> {
-  // Controllers for input fields.
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _instagramController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-
-  // NEW: Controller for Hobbies
   final TextEditingController _hobbiesController = TextEditingController();
 
-  // State variables to hold profile info fetched from Firestore.
   String _firstName = '';
   int? _age;
-  String _hobbies = ''; // NEW: State variable
+  String _hobbies = '';
+  List<Map<String, dynamic>> _reviews = [];
 
   @override
   void initState() {
@@ -32,21 +29,28 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     _loadProfile();
   }
 
-  /// Loads the profile data from Firestore and updates the state.
   Future<void> _loadProfile() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final reviewsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('reviews')
+          .orderBy('timestamp', descending: true)
+          .get();
+
       if (doc.exists) {
         final data = doc.data();
         setState(() {
           _firstName = data?['firstName'] ?? '';
-          _age = data?['age']; // Assumes age is stored as an integer
-          _hobbies = data?['hobbies'] ?? ''; // NEW: Load hobbies
+          _age = data?['age'];
+          _hobbies = data?['hobbies'] ?? '';
           _firstNameController.text = _firstName;
-          _hobbiesController.text = _hobbies; // NEW: Pre-fill hobbies field
+          _hobbiesController.text = _hobbies;
+          _reviews = reviewsSnapshot.docs.map((doc) => doc.data()).toList();
         });
       }
     } catch (error) {
@@ -54,7 +58,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     }
   }
 
-  /// Uploads profile info (email, first name, Instagram link, description, hobbies) to Firestore.
   Future<void> _uploadProfile() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -68,7 +71,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     final String firstName = _firstNameController.text.trim();
     final String instagram = _instagramController.text.trim();
     final String description = _descriptionController.text.trim();
-    final String hobbies = _hobbiesController.text.trim(); // NEW
+    final String hobbies = _hobbiesController.text.trim();
 
     try {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
@@ -76,7 +79,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
         'firstName': firstName,
         'instagram': instagram,
         'description': description,
-        'hobbies': hobbies, // NEW
+        'hobbies': hobbies,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -96,7 +99,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     _firstNameController.dispose();
     _instagramController.dispose();
     _descriptionController.dispose();
-    _hobbiesController.dispose(); // NEW
+    _hobbiesController.dispose();
     super.dispose();
   }
 
@@ -109,7 +112,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
             onPressed: () {
-              // Navigate to the Settings screen when the settings icon is pressed
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -123,7 +125,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
         child: Center(
           child: Column(
             children: [
-              // Image placeholder with overlay: a Stack with a CircleAvatar and text.
               Stack(
                 alignment: Alignment.center,
                 children: [
@@ -136,7 +137,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
                       color: Colors.white,
                     ),
                   ),
-                  // Overlay with user's first name and age (if available)
                   if (_firstName.isNotEmpty || _age != null)
                     Positioned(
                       bottom: 0,
@@ -156,32 +156,27 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              // Input field for first name.
               TextField(
                 controller: _firstNameController,
                 decoration: customInputDecoration(labelText: 'First Name'),
               ),
               const SizedBox(height: 16),
-              // Input field for Instagram link.
               TextField(
                 controller: _instagramController,
                 decoration: customInputDecoration(labelText: 'Instagram Link'),
               ),
               const SizedBox(height: 16),
-              // NEW: Input field for Hobbies.
               TextField(
                 controller: _hobbiesController,
                 decoration: customInputDecoration(labelText: 'Hobbies'),
               ),
               const SizedBox(height: 16),
-              // Multiline input field for description.
               TextField(
                 controller: _descriptionController,
                 decoration: customInputDecoration(labelText: 'Description'),
                 maxLines: 3,
               ),
               const SizedBox(height: 20),
-              // Button to trigger the _uploadProfile function.
               ElevatedButton(
                 onPressed: _uploadProfile,
                 child: const Text(
@@ -189,6 +184,57 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
                   style: TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
                 ),
               ),
+              const SizedBox(height: 30),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Text(
+                'Reviews',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              _reviews.isEmpty
+                  ? Column(
+                      children: const [
+                        Icon(Icons.rate_review_outlined, size: 40, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text(
+                          'No reviews yet.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _reviews.length,
+                      itemBuilder: (context, index) {
+                        final review = _reviews[index];
+                        final name = review['reviewerName'] ?? 'Anonymous';
+                        final comment = review['comment'] ?? '';
+                        final timestamp = review['timestamp']?.toDate();
+                        final dateString = timestamp != null
+                            ? '${timestamp.month}/${timestamp.day}/${timestamp.year}'
+                            : '';
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: ListTile(
+                            title: Text(name),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(comment),
+                                if (dateString.isNotEmpty)
+                                  Text(
+                                    dateString,
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ],
           ),
         ),
