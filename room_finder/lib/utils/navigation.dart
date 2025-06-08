@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../screens/find_roommates_screen.dart';
+import '../screens/create_listing_screen.dart';
+import '../screens/chat_screen.dart';     
 import '../screens/your_profile_screen.dart';
-import '../screens/create_listing_screen.dart';  // Import the new screen
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
 
-  // Set initialIndex to 1 so that the "Find Roommates" tab (middle) is active upon login.
-  const MainScreen({super.key, this.initialIndex = 1});
+  // By default, keep "Find Roommates" selected on login.
+  const MainScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -25,36 +26,27 @@ class _MainScreenState extends State<MainScreen> {
     _currentIndex = widget.initialIndex;
   }
 
-  /// Returns the list of screens for the bottom navigation bar.
+  /// Screens shown in the bottom navigation bar.
   List<Widget> _buildScreens() {
     return const [
-      FindRoommatesScreen(),    // Index 0: Find Roommates
-      CreateListingScreen(),    // Index 1: Create Listing (new)
-      YourProfileScreen(),      // Index 2: Profile
+      FindRoommatesScreen(),   // Index 0
+      CreateListingScreen(),   // Index 1
+      ChatScreen(),            // Index 2 
+      YourProfileScreen(),     // Index 3
     ];
   }
 
-  /// Handle bottom nav item taps
-  void onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
+  /// Handle bottom-nav taps.
+  void onTabTapped(int index) => setState(() => _currentIndex = index);
 
-  /// Optional function to show/hide a loading overlay
-  void setLoading(bool loading) {
-    setState(() {
-      _isLoading = loading;
-    });
-  }
+  /// Optional loading overlay.
+  void setLoading(bool loading) => setState(() => _isLoading = loading);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use a Stack to allow overlaying a loading indicator.
       body: Stack(
         children: [
-          // Preserve the state of each screen using an IndexedStack.
           IndexedStack(
             index: _currentIndex,
             children: _buildScreens(),
@@ -63,14 +55,11 @@ class _MainScreenState extends State<MainScreen> {
             Positioned.fill(
               child: Container(
                 color: Colors.black.withOpacity(0.3),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                child: const Center(child: CircularProgressIndicator()),
               ),
             ),
         ],
       ),
-      // Bottom navigation bar (hidden when loading).
       bottomNavigationBar: _isLoading
           ? const SizedBox.shrink()
           : BottomNavigationBar(
@@ -90,6 +79,10 @@ class _MainScreenState extends State<MainScreen> {
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.add_24_regular),
                   label: 'Create Listing',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.chat_24_regular), // NEW item
+                  label: 'Chat',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.person_24_regular),

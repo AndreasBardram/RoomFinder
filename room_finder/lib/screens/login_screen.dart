@@ -33,10 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
-      // Navigate to MainScreen with Find Roommates active (initialIndex = 1)
+      // Navigate to MainScreen with Find Roommates active (initialIndex = 0)
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
+        MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 0)),
       );
     } on FirebaseAuthException catch (e) {
       // Common sign-in errors (e.g. user not found, wrong password)
@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _skipLogin() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 1)),
+      MaterialPageRoute(builder: (context) => const MainScreen(initialIndex: 0)),
     );
   }
 
