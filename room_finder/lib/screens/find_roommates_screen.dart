@@ -1,29 +1,28 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'settings_screen.dart'; // Import the Settings screen
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// A placeholder widget for each apartment listing
+import 'settings_screen.dart';
+
+/* ---------------- Apartment card ---------------- */
+
 class ApartmentCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final String price;
-  final String address;
+  final String city;
+  final double price;
 
   const ApartmentCard({
     super.key,
-    required this.title,
-    required this.description,
+    required this.city,
     required this.price,
-    required this.address,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(8.0),
+      margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15.0),
+        borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -36,47 +35,33 @@ class ApartmentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         child: Column(
           children: [
+            // Placeholder for a future image
             Container(
               color: Colors.grey[200],
-              height: 100, // Placeholder for image or preview
+              height: 100,
               child: const Center(child: Icon(Icons.image, size: 50)),
             ),
             const SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(8),
               child: Text(
-                title,
+                city,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
+            const Spacer(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              padding: const EdgeInsets.all(8),
               child: Text(
-                description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                '\$$price',
+                '\$${price.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                address,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
           ],
@@ -86,46 +71,59 @@ class ApartmentCard extends StatelessWidget {
   }
 }
 
+/* ---------------- Screen ---------------- */
+
 class FindRoommatesScreen extends StatelessWidget {
   const FindRoommatesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final query = FirebaseFirestore.instance
+        .collection('apartments')
+        .orderBy('createdAt', descending: true);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Find Roommates'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () {
-              // Navigate to the Settings screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // Two items per row
-            crossAxisSpacing: 16.0, // Space between columns
-            mainAxisSpacing: 16.0, // Space between rows
-            childAspectRatio: 0.75, // Adjust the aspect ratio for better layout
-          ),
-          itemCount: 6, // Number of apartments (placeholders)
-          itemBuilder: (context, index) {
-            return ApartmentCard(
-              title: 'Apartment ${index + 1}',
-              description: 'This is a placeholder description of apartment ${index + 1}.',
-              price: '1200', // Placeholder price
-              address: '123 Main St, City, Country', // Placeholder address
-            );
-          },
-        ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: query.snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('No apartments available.'));
+          }
+
+          final docs = snapshot.data!.docs;
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: docs.length,
+            itemBuilder: (_, i) {
+              final data  = docs[i].data();
+              final city  = data['city'] ?? 'Unknown';
+              final price = (data['price'] ?? 0).toDouble();
+
+              return ApartmentCard(city: city, price: price);
+            },
+          );
+        },
       ),
     );
   }

@@ -1,87 +1,70 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'settings_screen.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'settings_screen.dart';
 import '../components/custom_styles.dart';
 
-/// Common InputDecoration for all TextFields.
-InputDecoration customInputDecoration({required String labelText}) {
-  return InputDecoration(
-    labelText: labelText,
-    labelStyle: const TextStyle(
-      color: Color.fromARGB(255, 100, 100, 100),
-      fontSize: 14,
-    ),
-    floatingLabelStyle: const TextStyle(
-      color: Color.fromARGB(255, 100, 100, 100),
-      fontSize: 14,
-    ),
-    border: const OutlineInputBorder(
-      borderSide: BorderSide(color: Color.fromARGB(255, 180, 180, 180)),
-      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-    ),
-    enabledBorder: const OutlineInputBorder(
-      borderSide: BorderSide(color: Color.fromARGB(255, 180, 180, 180)),
-      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-    ),
-    focusedBorder: const OutlineInputBorder(
-      borderSide: BorderSide(color: Color.fromARGB(255, 180, 180, 180)),
-      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-    ),
-  );
-}
-
-/// Common ElevatedButton style.
-ButtonStyle customElevatedButtonStyle() {
-  return ElevatedButton.styleFrom(
-    foregroundColor: Colors.black,     // Text color
-    backgroundColor: Colors.white,     // Button background color
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15.0),
-    ),
-    padding: const EdgeInsets.symmetric(vertical: 15.0),
-    elevation: 2,
-  );
-}
-
-/// A reusable Setting Button that matches the look of your original custom SettingScreen.
-Widget customSettingButton({
-  required BuildContext context,
-  required String label,
-  required VoidCallback onPressed,
-}) {
-  return Container(
-    height: 50,
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(15),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.1),
-          blurRadius: 2,
-          offset: const Offset(0, 1),
-        ),
-      ],
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: customElevatedButtonStyle(),
-        child: Text(
-          label,
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontSize: 16, color: Colors.black),
-        ),
-      ),
-    ),
-  );
-}
-
-class CreateListingScreen extends StatelessWidget {
+class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
+
+  @override
+  State<CreateListingScreen> createState() => _CreateListingScreenState();
+}
+
+class _CreateListingScreenState extends State<CreateListingScreen> {
+  final _cityController  = TextEditingController();
+  final _priceController = TextEditingController();
+
+  bool _isUploading = false;
+
+  @override
+  void dispose() {
+    _cityController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createApartment() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('No user logged in.')));
+      return;
+    }
+
+    final city  = _cityController.text.trim();
+    final price = double.tryParse(_priceController.text.trim());
+
+    if (city.isEmpty || price == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid city and price.')),
+      );
+      return;
+    }
+
+    setState(() => _isUploading = true);
+    try {
+      await FirebaseFirestore.instance.collection('apartments').add({
+        'ownedBy': user.uid,
+        'city'   : city,
+        'price'  : price,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _cityController.clear();
+      _priceController.clear();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Apartment uploaded!')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload: $e')),
+      );
+    } finally {
+      setState(() => _isUploading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,63 +74,55 @@ class CreateListingScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () {
-              // Navigate to the Settings screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Apartment Details',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Apartment Details',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: _cityController,
+                  decoration: customInputDecoration(labelText: 'City'),
+                ),
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: _priceController,
+                  decoration: customInputDecoration(labelText: 'Price (in \$)'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 32),
+
+                CustomButtonContainer(
+                  margin: const EdgeInsets.only(top: 16),
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : _createApartment,
+                    style: customElevatedButtonStyle(),
+                    child: const Text('Upload Apartment'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: customInputDecoration(labelText: 'Apartment Title'),
+          ),
+
+          if (_isUploading)
+            Container(
+              color: Colors.black.withOpacity(0.15),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: customInputDecoration(labelText: 'Description'),
-              maxLines: 4,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: customInputDecoration(labelText: 'Price (in \$)'),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: customInputDecoration(labelText: 'Address'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: customInputDecoration(labelText: 'Contact Info'),
-            ),
-            const SizedBox(height: 32),
-            CustomButtonContainer(
-              margin: const EdgeInsets.only(top: 16),
-              child: ElevatedButton(
-                onPressed: () {
-                  // Handle listing creation logic
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Listing Created')),
-                  );
-                },
-                style: customElevatedButtonStyle(),
-                child: const Text('Create Listing'),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
