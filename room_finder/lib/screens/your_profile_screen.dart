@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/custom_styles.dart';
 import 'settings_screen.dart';
 
-/* ------------ Re-usable apartment card (same look as FindRoommates) ------- */
+/* ------------ Re-usable apartment card (same look as FindRoommates) ------ */
 
 class ApartmentCard extends StatelessWidget {
   final String city;
@@ -37,6 +37,7 @@ class ApartmentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         child: Column(
           children: [
+            // Placeholder image
             Container(
               color: Colors.grey[200],
               height: 100,
@@ -72,7 +73,7 @@ class ApartmentCard extends StatelessWidget {
   }
 }
 
-/* ----------------------------- Profile Screen ----------------------------- */
+/* ----------------------------- Profile Screen ---------------------------- */
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({super.key});
@@ -82,23 +83,44 @@ class YourProfileScreen extends StatefulWidget {
 }
 
 class _YourProfileScreenState extends State<YourProfileScreen> {
+  /* --------------------------- Text controllers -------------------------- */
+
   final _firstNameController = TextEditingController();
   final _instagramController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _hobbiesController = TextEditingController();
+
+  /* ------------------------------ Cached data --------------------------- */
 
   String _firstName = '';
   int?   _age;
   String _hobbies  = '';
   List<Map<String, dynamic>> _reviews = [];
 
+  /* ---- Future used by FutureBuilder (now returns **all** apartments) ---- */
+
+  late Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _apartmentsFuture =
+      Future.value([]);                           // <--- default to empty
+
+  /* ----------------------------- Lifecycle ------------------------------ */
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _apartmentsFuture = _fetchApartments();        // <--- renamed
   }
 
-  /* --------------------------- LOAD / SAVE PROFILE ------------------------ */
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _instagramController.dispose();
+    _descriptionController.dispose();
+    _hobbiesController.dispose();
+    super.dispose();
+  }
+
+  /* ---------------------------- Profile I/O ----------------------------- */
 
   Future<void> _loadProfile() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -155,21 +177,31 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _instagramController.dispose();
-    _descriptionController.dispose();
-    _hobbiesController.dispose();
-    super.dispose();
+  /* ---------------- Fetch **all** apartments from Firestore ------------- */
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchApartments()
+      async {
+    // <--- removed the ownedBy == uid filter so we get EVERY listing
+    final snap = await FirebaseFirestore.instance
+        .collection('apartments')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snap.docs;
   }
 
-  /* -------------------------------- BUILD -------------------------------- */
+  /* --------------------------- Manual refresh --------------------------- */
+
+  void _refreshApartments() {                     // <--- renamed
+    setState(() {
+      _apartmentsFuture = _fetchApartments();
+    });
+  }
+
+  /* -------------------------------- BUILD ------------------------------- */
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Profile'),
@@ -188,7 +220,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
         child: Column(
           children: [
 
-            /* ------------------ Avatar & editable profile fields ------------- */
+            /* ---------------- Avatar & editable profile fields ------------- */
 
             CircleAvatar(
               radius: 50,
@@ -233,7 +265,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
             ),
             const SizedBox(height: 30),
 
-            /* ------------------------------ Reviews -------------------------- */
+            /* ------------------------------ Reviews ------------------------ */
 
             const Divider(),
             const SizedBox(height: 10),
@@ -278,65 +310,70 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
                     },
                   ),
 
-            /* ---------------------------- Your offers ------------------------ */
+            /* --------------------------- All apartments -------------------- */
 
             const SizedBox(height: 30),
             const Divider(),
             const SizedBox(height: 10),
-            const Text('Your Offers',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'All Apartments',          // <--- header renamed
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh',
+                  onPressed: _refreshApartments,
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
 
-            if (uid == null)
-              const Text('Log in to see your offers.',
-                  style: TextStyle(color: Colors.grey))
-            else
-              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('apartments')
-                    .where('ownedBy', isEqualTo: uid)
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
-                builder: (_, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-                  if (!snap.hasData || snap.data!.docs.isEmpty) {
-                    return Column(
-                      children: const [
-                        Icon(FluentIcons.home_24_regular,
-                            size: 40, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('No offers yet.',
-                            style: TextStyle(fontSize: 16, color: Colors.grey)),
-                      ],
-                    );
-                  }
-
-                  final docs = snap.data!.docs;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.75,
-                    ),
-                    itemCount: docs.length,
-                    itemBuilder: (_, i) {
-                      final d = docs[i].data();
-                      final city  = d['city'] ?? 'Unknown';
-                      final price = (d['price'] ?? 0).toDouble();
-                      return ApartmentCard(city: city, price: price);
-                    },
+            FutureBuilder<
+                List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+              future: _apartmentsFuture,
+              builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: CircularProgressIndicator(),
                   );
-                },
-              ),
+                }
+                if (!snap.hasData || snap.data!.isEmpty) {
+                  return Column(
+                    children: const [
+                      Icon(FluentIcons.home_24_regular,
+                          size: 40, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('No apartments available.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                    ],
+                  );
+                }
+
+                final docs = snap.data!;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: docs.length,
+                  itemBuilder: (_, i) {
+                    final d = docs[i].data();
+                    final city  = d['city'] ?? 'Unknown';
+                    final price = (d['price'] ?? 0).toDouble();
+                    return ApartmentCard(city: city, price: price);
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),

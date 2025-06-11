@@ -1,1 +1,9 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:android:6ccf566b4b163f0e511951","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:ios:d537d283534e67ef511951","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:ios:d537d283534e67ef511951","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"roomfinder-cec5a","configurations":{"android":"1:97436806148:android:6ccf566b4b163f0e511951","ios":"1:97436806148:ios:d537d283534e67ef511951","macos":"1:97436806148:ios:d537d283534e67ef511951","web":"1:97436806148:web:7c675e51b72fca78511951","windows":"1:97436806148:web:918149ae11703618511951"}}}}}}
+{"flutter":{"platforms":{"android":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:android:6ccf566b4b163f0e511951","fileOutput":"android/app/google-services.json"}},
+"ios":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:ios:d537d283534e67ef511951","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},
+"macos":{"default":{"projectId":"roomfinder-cec5a","appId":"1:97436806148:ios:d537d283534e67ef511951","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},
+"dart":{"lib/firebase_options.dart":{"projectId":"roomfinder-cec5a",
+"configurations":{"android":"1:97436806148:android:6ccf566b4b163f0e511951",
+"ios":"1:97436806148:ios:d537d283534e67ef511951",
+"macos":"1:97436806148:ios:d537d283534e67ef511951",
+"web":"1:97436806148:web:7c675e51b72fca78511951",
+"windows":"1:97436806148:web:918149ae11703618511951"}}}}}}
