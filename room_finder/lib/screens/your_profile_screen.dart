@@ -179,16 +179,38 @@ class _YourProfileScreenState extends State<YourProfileScreen> {
 
   /* ---------------- Fetch **all** apartments from Firestore ------------- */
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchApartments()
-      async {
-    // <--- removed the ownedBy == uid filter so we get EVERY listing
+  /* ---------------- Fetch ONLY this user’s apartments -------------------- */
+
+Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _fetchApartments()
+    async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    debugPrint('[apt] No current user – returning empty list');
+    return [];
+  }
+
+  try {
+    debugPrint('[apt] Fetching apartments for uid: ${user.uid}');
+
     final snap = await FirebaseFirestore.instance
-        .collection('apartments')
-        .orderBy('createdAt', descending: true)
-        .get();
+    .collection('apartments')
+    .where('ownedBy', isEqualTo: user.uid)
+    .get();                    // ← no orderBy → no composite index needed
+
+    debugPrint('[apt] Query succeeded – ${snap.docs.length} docs found');
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      debugPrint('[apt] docId=${doc.id}  ownedBy=${data['ownedBy']} '
+                 'city=${data['city']}  createdAt=${data['createdAt']}');
+    }
 
     return snap.docs;
+  } catch (e, st) {
+    debugPrint('[apt] Query failed: $e');
+    debugPrintStack(stackTrace: st);              // full stack in console
+    return [];
   }
+}
 
   /* --------------------------- Manual refresh --------------------------- */
 
