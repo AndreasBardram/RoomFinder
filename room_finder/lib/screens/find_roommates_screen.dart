@@ -47,7 +47,7 @@ class ApartmentCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(8),
               child: Text(
-                city,                                       // København / Østerbro → ok
+                city,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.roboto(
                   fontSize: 16,
@@ -88,25 +88,47 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   String _sort = 'Newest first';
   String? _location; // null = all
 
-  RangeValues _price = const RangeValues(0, 5000);
-  RangeValues _mates = const RangeValues(0, 5);
+  // Global slider limits
+  static const double _priceMin = 0;
+  static const double _priceMax = 5000;
+  static const int _matesMin = 0;
+  static const int _matesMax = 10;
+
+  RangeValues _price = const RangeValues(_priceMin, _priceMax);
+  RangeValues _mates =
+      RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
   /* ---------------- Build Firestore query ---------------- */
 
   Query<Map<String, dynamic>> _buildQuery() {
+    // Declare as Query so later re-assignments compile
     Query<Map<String, dynamic>> q =
         FirebaseFirestore.instance.collection('apartments');
 
+    /* Location */
     if (_location != null) {
       q = q.where('city', isEqualTo: _location);
     }
 
-    q = q
-        .where('price', isGreaterThanOrEqualTo: _price.start)
-        .where('price', isLessThanOrEqualTo: _price.end)
-        .where('roommates', isGreaterThanOrEqualTo: _mates.start.toInt())
-        .where('roommates', isLessThanOrEqualTo: _mates.end.toInt());
+    /* Price range — add filter only if user narrowed the slider */
+    final bool priceNarrowed =
+        _price.start > _priceMin || _price.end < _priceMax;
+    if (priceNarrowed) {
+      q = q
+          .where('price', isGreaterThanOrEqualTo: _price.start)
+          .where('price', isLessThanOrEqualTo: _price.end);
+    }
 
+    /* Room-mates range — add filter only if user narrowed the slider */
+    final bool matesNarrowed =
+        _mates.start > _matesMin || _mates.end < _matesMax;
+    if (matesNarrowed) {
+      q = q
+          .where('roommates', isGreaterThanOrEqualTo: _mates.start.round())
+          .where('roommates', isLessThanOrEqualTo: _mates.end.round());
+    }
+
+    /* Sorting */
     switch (_sort) {
       case 'Price ↓':
         q = q.orderBy('price', descending: true);
@@ -117,9 +139,10 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
       case 'Oldest first':
         q = q.orderBy('createdAt');
         break;
-      default:
+      default: // Newest first
         q = q.orderBy('createdAt', descending: true);
     }
+
     return q;
   }
 
@@ -149,8 +172,10 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             margin: const EdgeInsets.all(16),
             child: ExpansionTile(
               initiallyExpanded: false,
-              title: const Text('Filters',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text(
+                'Filters',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               childrenPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
@@ -182,8 +207,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                     DropdownButton<String>(
                       value: _location,
                       hint: const Text('Any'),
-                      items: const ['København', 'Østerbro']
-                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      items: const ['København', 'Østerbro', 'Kongens Lyngby']
+                          .map((c) =>
+                              DropdownMenuItem(value: c, child: Text(c)))
                           .toList(),
                       onChanged: (val) => setState(() => _location = val),
                     ),
@@ -195,8 +221,8 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                 Text(
                     'Price range: DKK ${_price.start.toInt()} – ${_price.end.toInt()}'),
                 RangeSlider(
-                  min: 0,
-                  max: 5000,
+                  min: _priceMin,
+                  max: _priceMax,
                   divisions: 50,
                   values: _price,
                   labels: RangeLabels(
@@ -208,10 +234,11 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                 const SizedBox(height: 12),
 
                 /* Roommates range */
-                Text('Room-mates: ${_mates.start.toInt()} – ${_mates.end.toInt()}'),
+                Text(
+                    'Room-mates: ${_mates.start.toInt()} – ${_mates.end.toInt()}'),
                 RangeSlider(
-                  min: 0,
-                  max: 10,
+                  min: _matesMin.toDouble(),
+                  max: _matesMax.toDouble(),
                   divisions: 10,
                   values: _mates,
                   labels: RangeLabels(
