@@ -24,7 +24,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _roommatesController   = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  final _picker = ImagePicker();
+  final _picker  = ImagePicker();
   List<XFile> _images = [];
   bool _isUploading   = false;
 
@@ -39,6 +39,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   /* --------------------------- image picker --------------------------- */
+
   Future<void> _pickImages() async {
     final picked = await _picker.pickMultiImage(imageQuality: 85);
     if (picked.isEmpty) return;
@@ -60,7 +61,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       child: Container(
         height: 120,
         decoration: BoxDecoration(
-          color: Colors.grey.shade300,                         // not white
+          color: Colors.grey.shade300,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade600, width: 3),
         ),
@@ -83,13 +84,31 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  /* ------------------------- single image upload ---------------------- */
+
+  Future<String> _uploadImage({
+    required String listingId,
+    required int index,
+    required XFile file,
+  }) async {
+    final ref = FirebaseStorage.instance
+        .ref('apartments/$listingId/$index.jpg');
+
+    final snap = await ref.putFile(
+      File(file.path),
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+
+    return await snap.ref.getDownloadURL();
+  }
+
   /* ---------------------------- upload flow --------------------------- */
+
   Future<void> _createApartment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No user logged in.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('No user logged in.')));
       return;
     }
 
@@ -106,7 +125,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         description.isEmpty ||
         _images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fill all fields and select 1-10 photos.')),
+        const SnackBar(content: Text('Fill all fields and select 1–10 photos.')),
       );
       return;
     }
@@ -114,6 +133,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isUploading = true);
 
     try {
+      /* ---- create Firestore doc first ---- */
       final docRef = await FirebaseFirestore.instance
           .collection('apartments')
           .add({
@@ -126,15 +146,21 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'createdAt'  : FieldValue.serverTimestamp(),
       });
 
-      final urls = <String>[];
-      for (var i = 0; i < _images.length; i++) {
-        final ref = FirebaseStorage.instance
-            .ref('apartments/${docRef.id}/$i.jpg');
-        await ref.putFile(File(_images[i].path));
-        urls.add(await ref.getDownloadURL());
-      }
+      /* ---- upload images in parallel ---- */
+      final uploadFutures = _images.asMap().entries.map(
+        (e) => _uploadImage(
+          listingId: docRef.id,
+          index: e.key,
+          file: e.value,
+        ),
+      );
+
+      final urls = await Future.wait(uploadFutures);
+
+      /* ---- write URLs back ---- */
       await docRef.update({'imageUrls': urls});
 
+      /* ---- clear UI ---- */
       _titleController.clear();
       _cityController.clear();
       _priceController.clear();
@@ -153,6 +179,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   /* -------------------------------- UI -------------------------------- */
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,7 +203,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('Apartment Details',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
 
                 TextField(
@@ -187,20 +215,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
                 TextField(
                   controller: _cityController,
-                  decoration: customInputDecoration(labelText: 'Location (City)'),
+                  decoration:
+                      customInputDecoration(labelText: 'Location (City)'),
                 ),
                 const SizedBox(height: 16),
 
                 TextField(
                   controller: _priceController,
-                  decoration: customInputDecoration(labelText: 'Price (in \$)'),
+                  decoration:
+                      customInputDecoration(labelText: 'Price (in DKK)'),
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
 
                 TextField(
                   controller: _roommatesController,
-                  decoration: customInputDecoration(labelText: 'Number of Roommates'),
+                  decoration: customInputDecoration(
+                      labelText: 'Number of Roommates'),
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
@@ -221,7 +252,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _images.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: 8),
                       itemBuilder: (_, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.file(
@@ -235,12 +267,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   ),
                 const SizedBox(height: 32),
 
-                /* ---------------------- Upload Apartment ----------------- */
                 ElevatedButton(
                   onPressed: _isUploading ? null : _createApartment,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
-                    foregroundColor: Colors.black, // ⬅️ text NOT white
+                    foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -250,7 +281,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               ],
             ),
           ),
-
           if (_isUploading)
             Container(
               color: Colors.black.withOpacity(0.15),

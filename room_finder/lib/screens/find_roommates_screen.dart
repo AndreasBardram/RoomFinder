@@ -1,21 +1,23 @@
-// find_roommates_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'more_information.dart';
 import 'settings_screen.dart';
 
-/* ---------------- Apartment card ---------------- */
+/* ─────────────────────── Apartment card ───────────────────────── */
 
 class ApartmentCard extends StatelessWidget {
   final String city;
   final double price;
+  final String? imageUrl;
 
   const ApartmentCard({
     super.key,
     required this.city,
     required this.price,
+    this.imageUrl,
   });
 
   @override
@@ -37,13 +39,32 @@ class ApartmentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         child: Column(
           children: [
-            /* Placeholder image space */
-            Container(
-              color: Colors.grey[200],
+            /* --- image (or placeholder) --- */
+            SizedBox(
               height: 100,
-              child: const Center(child: Icon(Icons.image, size: 50)),
+              width: double.infinity,
+              child: imageUrl == null
+                  ? Container(
+                      color: Colors.grey[200],
+                      child: const Center(child: Icon(Icons.image, size: 50)),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: imageUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(child: Icon(Icons.image, size: 50)),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                            child: Icon(Icons.broken_image, size: 50)),
+                      ),
+                    ),
             ),
             const SizedBox(height: 8),
+
+            /* --- city --- */
             Padding(
               padding: const EdgeInsets.all(8),
               child: Text(
@@ -56,6 +77,8 @@ class ApartmentCard extends StatelessWidget {
               ),
             ),
             const Spacer(),
+
+            /* --- price --- */
             Padding(
               padding: const EdgeInsets.all(8),
               child: Text(
@@ -73,7 +96,7 @@ class ApartmentCard extends StatelessWidget {
   }
 }
 
-/* ---------------- Screen with filters ---------------- */
+/* ─────────────────── Screen with filters ───────────────────────── */
 
 class FindRoommatesScreen extends StatefulWidget {
   const FindRoommatesScreen({super.key});
@@ -83,7 +106,7 @@ class FindRoommatesScreen extends StatefulWidget {
 }
 
 class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
-  /* ---------------- Filter state ---------------- */
+/* ---------------- Filter state ---------------- */
 
   String _sort = 'Newest first';
   String? _location; // null = all
@@ -95,13 +118,11 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   static const int _matesMax = 10;
 
   RangeValues _price = const RangeValues(_priceMin, _priceMax);
-  RangeValues _mates =
-      RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
+  RangeValues _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
-  /* ---------------- Build Firestore query ---------------- */
+/* ---------------- Build Firestore query ---------------- */
 
   Query<Map<String, dynamic>> _buildQuery() {
-    // Declare as Query so later re-assignments compile
     Query<Map<String, dynamic>> q =
         FirebaseFirestore.instance.collection('apartments');
 
@@ -110,7 +131,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
       q = q.where('city', isEqualTo: _location);
     }
 
-    /* Price range — add filter only if user narrowed the slider */
+    /* Price range — filter only if user narrowed the slider */
     final bool priceNarrowed =
         _price.start > _priceMin || _price.end < _priceMax;
     if (priceNarrowed) {
@@ -119,7 +140,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
           .where('price', isLessThanOrEqualTo: _price.end);
     }
 
-    /* Room-mates range — add filter only if user narrowed the slider */
+    /* Room-mates range — filter only if user narrowed the slider */
     final bool matesNarrowed =
         _mates.start > _matesMin || _mates.end < _matesMax;
     if (matesNarrowed) {
@@ -146,7 +167,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     return q;
   }
 
-  /* ---------------- UI ---------------- */
+/* ---------------- UI ---------------- */
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +212,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                         'Oldest first',
                         'Price ↓',
                         'Price ↑',
-                      ].map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      ]
+                          .map(
+                              (s) => DropdownMenuItem(value: s, child: Text(s)))
                           .toList(),
                       onChanged: (val) => setState(() => _sort = val ?? _sort),
                     ),
@@ -208,8 +231,8 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       value: _location,
                       hint: const Text('Any'),
                       items: const ['København', 'Østerbro', 'Kongens Lyngby']
-                          .map((c) =>
-                              DropdownMenuItem(value: c, child: Text(c)))
+                          .map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)))
                           .toList(),
                       onChanged: (val) => setState(() => _location = val),
                     ),
@@ -277,7 +300,23 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                     final d = docs[i].data();
                     final city = d['city'] ?? 'Unknown';
                     final price = (d['price'] ?? 0).toDouble();
-                    return ApartmentCard(city: city, price: price);
+                    final List<Object?> rawList = (d['imageUrls'] ?? []);
+                    final images = rawList.whereType<String>().toList();
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MoreInformationScreen(data: d),
+                          ),
+                        );
+                      },
+                      child: ApartmentCard(
+                        city: city,
+                        price: price,
+                        imageUrl: images.isNotEmpty ? images.first : null,
+                      ),
+                    );
                   },
                 );
               },
