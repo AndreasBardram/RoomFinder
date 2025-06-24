@@ -74,19 +74,19 @@ class _MainScreenState extends State<MainScreen> {
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.search_24_regular),
-                  label: 'Find Roommates',
+                  label: 'Find Værelse',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.add_24_regular),
-                  label: 'Create Listing',
+                  label: 'Opret',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.chat_24_regular), // NEW item
+                  icon: Icon(FluentIcons.chat_24_regular), 
                   label: 'Chat',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(FluentIcons.person_24_regular),
-                  label: 'Profile',
+                  label: 'Min Profil',
                 ),
               ],
             ),
