@@ -1,12 +1,10 @@
 import 'dart:io';
-
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-
 import '../components/custom_styles.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
@@ -14,18 +12,18 @@ import 'opret_profil_screen.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
-
   @override
   State<CreateListingScreen> createState() => _CreateListingScreenState();
 }
 
 class _CreateListingScreenState extends State<CreateListingScreen> {
-  final _titleController       = TextEditingController();
+  final _titleController     = TextEditingController();
+  final _locationController  = TextEditingController();
+  final _priceController     = TextEditingController();
+  final _sizeController      = TextEditingController();
+  final _periodController    = TextEditingController();
+  final _roommatesController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _locationController    = TextEditingController();
-  final _priceController       = TextEditingController();
-  final _roommatesController   = TextEditingController();
-  final _periodController      = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
   List<XFile> _images = [];
@@ -34,19 +32,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
     _locationController.dispose();
     _priceController.dispose();
-    _roommatesController.dispose();
+    _sizeController.dispose();
     _periodController.dispose();
+    _roommatesController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
-  /* --------------------------- image picker --------------------------- */
-
   Future<void> _pickImages() async {
     final picked = await _picker.pickMultiImage(imageQuality: 85);
-    if (picked.isEmpty) return;
     if (picked.length > 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max 10 photos.')),
@@ -77,7 +73,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               Text(
                 hasImages
                     ? '${_images.length} billede(r) valgt – tryk for at ændre'
-                    : 'Tryk for at tilføje op til 10 billeder',
+                    : 'Tryk for at tilføje op til 10 billeder (valgfrit)',
                 textAlign: TextAlign.center,
               ),
             ],
@@ -87,15 +83,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  /* ------------------------- single image upload ---------------------- */
-
   Future<String> _uploadImage({
     required String listingId,
     required int index,
     required XFile file,
   }) async {
-    final ref =
-        FirebaseStorage.instance.ref('apartments/$listingId/$index.jpg');
+    final ref = FirebaseStorage.instance.ref('apartments/$listingId/$index.jpg');
     final snap = await ref.putFile(
       File(file.path),
       SettableMetadata(contentType: 'image/jpeg'),
@@ -103,28 +96,27 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return await snap.ref.getDownloadURL();
   }
 
-  /* ---------------------------- upload flow --------------------------- */
-
   Future<void> _createApartment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final title       = _titleController.text.trim();
+    final title      = _titleController.text.trim();
+    final location   = _locationController.text.trim();
+    final price      = double.tryParse(_priceController.text.trim());
+    final size       = double.tryParse(_sizeController.text.trim());
+    final period     = _periodController.text.trim();
+    final roommates  = int.tryParse(_roommatesController.text.trim());
     final description = _descriptionController.text.trim();
-    final location    = _locationController.text.trim();
-    final price       = double.tryParse(_priceController.text.trim());
-    final roommates   = int.tryParse(_roommatesController.text.trim());
-    final period      = _periodController.text.trim();
 
     if (title.isEmpty ||
-        description.isEmpty ||
         location.isEmpty ||
         price == null ||
-        roommates == null ||
+        size == null ||
         period.isEmpty ||
-        _images.isEmpty) {
+        roommates == null ||
+        description.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Udfyld alle felter og vælg 1-10 billeder.')),
+        const SnackBar(content: Text('Udfyld alle felter korrekt.')),
       );
       return;
     }
@@ -132,39 +124,37 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final docRef = await FirebaseFirestore.instance
-          .collection('apartments')
-          .add({
-        'ownedBy'    : user.uid,
-        'title'      : title,
+      final docRef = await FirebaseFirestore.instance.collection('apartments').add({
+        'ownedBy'   : user.uid,
+        'title'     : title,
+        'location'  : location,
+        'price'     : price,
+        'size'      : size,
+        'period'    : period,
+        'roommates' : roommates,
         'description': description,
-        'location'   : location,
-        'price'      : price,
-        'roommates'  : roommates,
-        'period'     : period,
-        'createdAt'  : FieldValue.serverTimestamp(),
+        'createdAt' : FieldValue.serverTimestamp(),
       });
 
-      final uploads = _images.asMap().entries.map(
-        (e) => _uploadImage(
-          listingId: docRef.id,
-          index: e.key,
-          file: e.value,
-        ),
-      );
-      final urls = await Future.wait(uploads);
-      await docRef.update({'imageUrls': urls});
+      if (_images.isNotEmpty) {
+        final uploads = _images.asMap().entries.map(
+          (e) => _uploadImage(listingId: docRef.id, index: e.key, file: e.value),
+        );
+        final urls = await Future.wait(uploads);
+        await docRef.update({'imageUrls': urls});
+      }
 
       _titleController.clear();
-      _descriptionController.clear();
       _locationController.clear();
       _priceController.clear();
-      _roommatesController.clear();
+      _sizeController.clear();
       _periodController.clear();
+      _roommatesController.clear();
+      _descriptionController.clear();
       setState(() => _images = []);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lejeopslag gemt!')),
+        const SnackBar(content: Text('Opslag gemt!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -174,8 +164,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       setState(() => _isUploading = false);
     }
   }
-
-  /* -------------------  Logged-out placeholder ------------------------ */
 
   Widget _loggedOutBody(BuildContext context) {
     return Center(
@@ -187,10 +175,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                ),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
                 child: const Text('Log ind'),
               ),
             ),
@@ -201,10 +186,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
-                ),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
                 child: const Text('Opret profil'),
               ),
             ),
@@ -214,22 +196,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  /* -------------------------------- UI -------------------------------- */
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Listing'),
+        title: const Text('Opret værelse'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -242,69 +219,46 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('Detaljer',
-                          style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
+                      _imagePickerButton(),
+                      const SizedBox(height: 24),
                       TextField(
                         controller: _titleController,
                         decoration: customInputDecoration(labelText: 'Titel'),
                       ),
                       const SizedBox(height: 16),
                       TextField(
-                        controller: _descriptionController,
-                        decoration:
-                            customInputDecoration(labelText: 'Beskrivelse'),
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
                         controller: _locationController,
-                        decoration:
-                            customInputDecoration(labelText: 'Lokation'),
+                        decoration: customInputDecoration(labelText: 'Lokation'),
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _priceController,
-                        decoration:
-                            customInputDecoration(labelText: 'Leje (DKK)'),
+                        decoration: customInputDecoration(labelText: 'Pris (DKK)'),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
-                        controller: _roommatesController,
-                        decoration: customInputDecoration(
-                            labelText: 'Antal roommates'),
+                        controller: _sizeController,
+                        decoration: customInputDecoration(labelText: 'Størrelse (m²)'),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _periodController,
-                        decoration:
-                            customInputDecoration(labelText: 'Periode'),
+                        decoration: customInputDecoration(labelText: 'Periode'),
                       ),
-                      const SizedBox(height: 24),
-                      _imagePickerButton(),
                       const SizedBox(height: 16),
-                      if (_images.isNotEmpty)
-                        SizedBox(
-                          height: 80,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _images.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 8),
-                            itemBuilder: (_, i) => ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(_images[i].path),
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        ),
+                      TextField(
+                        controller: _roommatesController,
+                        decoration: customInputDecoration(labelText: 'Antal roommates'),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _descriptionController,
+                        decoration: customInputDecoration(labelText: 'Beskrivelse'),
+                        maxLines: 3,
+                      ),
                       const SizedBox(height: 32),
                       SizedBox(
                         width: double.infinity,
@@ -312,7 +266,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                           child: ElevatedButton(
                             style: customElevatedButtonStyle(),
                             onPressed: _isUploading ? null : _createApartment,
-                            child: const Text('Upload lejlighed'),
+                            child: const Text('Upload værelse'),
                           ),
                         ),
                       ),
