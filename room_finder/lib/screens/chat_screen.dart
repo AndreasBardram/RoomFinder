@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/custom_styles.dart';     
 import 'log_ind_screen.dart';
-import 'create_account_screen.dart';
+import 'opret_profil_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});

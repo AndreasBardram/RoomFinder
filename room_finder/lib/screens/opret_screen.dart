@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../components/custom_styles.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
-import 'create_account_screen.dart';
+import 'opret_profil_screen.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});

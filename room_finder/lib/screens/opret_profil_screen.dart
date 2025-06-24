@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/navigation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/custom_styles.dart';
+import '../utils/navigation.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -11,32 +12,69 @@ class CreateAccountScreen extends StatefulWidget {
 }
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _birthDateController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _birthDateController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   Future<void> _createAccount() async {
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final birthDate = _birthDateController.text.trim();
+    final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter email and password.');
+
+    if (firstName.isEmpty ||
+        lastName.isEmpty ||
+        birthDate.isEmpty ||
+        phone.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty) {
+      _showMessage('Udfyld alle felter.');
       return;
     }
+
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+      final uid = cred.user?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'firstName': firstName,
+          'lastName': lastName,
+          'birthDate': birthDate,
+          'phone': phone,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)),
+      );
     } on FirebaseAuthException catch (e) {
-      _showMessage('Account creation failed: ${e.message}');
+      _showMessage('Fejl: ${e.message}');
     } catch (_) {
-      _showMessage('An unexpected error occurred.');
+      _showMessage('Uventet fejl.');
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -82,13 +120,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _birthDateController,
-                    decoration: customInputDecoration(labelText: 'Fødselsdato'),
+                    decoration: customInputDecoration(labelText: 'Fødselsdato (YYYY-MM-DD)'),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _phoneController,
-                    decoration: customInputDecoration(labelText: 'Telefon-nummer'),
+                    decoration: customInputDecoration(labelText: 'Telefonnummer'),
                     keyboardType: TextInputType.phone,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
                   ),
@@ -110,15 +148,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: CustomButtonContainer(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(15),
-                        child: ElevatedButton(
-                          style: customElevatedButtonStyle(),
-                          onPressed: _createAccount,
-                          child: Text(
-                            'Opret profil',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
-                          ),
+                      child: ElevatedButton(
+                        style: customElevatedButtonStyle(),
+                        onPressed: _createAccount,
+                        child: Text(
+                          'Opret profil',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
                         ),
                       ),
                     ),
