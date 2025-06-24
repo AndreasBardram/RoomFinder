@@ -17,12 +17,12 @@ class CreateListingScreen extends StatefulWidget {
 }
 
 class _CreateListingScreenState extends State<CreateListingScreen> {
-  final _titleController     = TextEditingController();
-  final _locationController  = TextEditingController();
-  final _priceController     = TextEditingController();
-  final _sizeController      = TextEditingController();
-  final _periodController    = TextEditingController();
-  final _roommatesController = TextEditingController();
+  final _titleController       = TextEditingController();
+  final _locationController    = TextEditingController();
+  final _priceController       = TextEditingController();
+  final _sizeController        = TextEditingController();
+  final _periodController      = TextEditingController();
+  final _roommatesController   = TextEditingController();
   final _descriptionController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
@@ -42,18 +42,18 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<void> _pickImages() async {
-    final picked = await _picker.pickMultiImage(imageQuality: 85);
-    if (picked.length > 10) {
+    final imgs = await _picker.pickMultiImage(imageQuality: 85);
+    if (imgs.length > 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max 10 photos.')),
       );
       return;
     }
-    setState(() => _images = picked);
+    setState(() => _images = imgs);
   }
 
   Widget _imagePickerButton() {
-    final hasImages = _images.isNotEmpty;
+    final has = _images.isNotEmpty;
     return InkWell(
       onTap: _pickImages,
       borderRadius: BorderRadius.circular(12),
@@ -71,7 +71,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               const Icon(Icons.add_a_photo_outlined, size: 32),
               const SizedBox(height: 8),
               Text(
-                hasImages
+                has
                     ? '${_images.length} billede(r) valgt – tryk for at ændre'
                     : 'Tryk for at tilføje op til 10 billeder (valgfrit)',
                 textAlign: TextAlign.center,
@@ -89,10 +89,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     required XFile file,
   }) async {
     final ref = FirebaseStorage.instance.ref('apartments/$listingId/$index.jpg');
-    final snap = await ref.putFile(
-      File(file.path),
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
+    final snap = await ref.putFile(File(file.path),
+        SettableMetadata(contentType: 'image/jpeg'));
     return await snap.ref.getDownloadURL();
   }
 
@@ -100,12 +98,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final title      = _titleController.text.trim();
-    final location   = _locationController.text.trim();
-    final price      = double.tryParse(_priceController.text.trim());
-    final size       = double.tryParse(_sizeController.text.trim());
-    final period     = _periodController.text.trim();
-    final roommates  = int.tryParse(_roommatesController.text.trim());
+    final title       = _titleController.text.trim();
+    final location    = _locationController.text.trim();
+    final price       = double.tryParse(_priceController.text.trim());
+    final size        = double.tryParse(_sizeController.text.trim());
+    final period      = _periodController.text.trim();
+    final roommates   = int.tryParse(_roommatesController.text.trim());
     final description = _descriptionController.text.trim();
 
     if (title.isEmpty ||
@@ -124,21 +122,28 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final docRef = await FirebaseFirestore.instance.collection('apartments').add({
-        'ownedBy'   : user.uid,
-        'title'     : title,
-        'location'  : location,
-        'price'     : price,
-        'size'      : size,
-        'period'    : period,
-        'roommates' : roommates,
-        'description': description,
-        'createdAt' : FieldValue.serverTimestamp(),
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final ownerData = userDoc.data() ?? {};
+      final docRef =
+          await FirebaseFirestore.instance.collection('apartments').add({
+        'ownedBy'        : user.uid,
+        'ownerFirstName' : ownerData['firstName'] ?? '',
+        'ownerLastName'  : ownerData['lastName'] ?? '',
+        'title'          : title,
+        'location'       : location,
+        'price'          : price,
+        'size'           : size,
+        'period'         : period,
+        'roommates'      : roommates,
+        'description'    : description,
+        'createdAt'      : FieldValue.serverTimestamp(),
       });
 
       if (_images.isNotEmpty) {
         final uploads = _images.asMap().entries.map(
-          (e) => _uploadImage(listingId: docRef.id, index: e.key, file: e.value),
+          (e) => _uploadImage(
+              listingId: docRef.id, index: e.key, file: e.value),
         );
         final urls = await Future.wait(uploads);
         await docRef.update({'imageUrls': urls});
@@ -153,13 +158,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       _descriptionController.clear();
       setState(() => _images = []);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Opslag gemt!')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Opslag gemt!')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fejl under upload: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Fejl under upload: $e')));
     } finally {
       setState(() => _isUploading = false);
     }
@@ -175,7 +178,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const LoginScreen())),
                 child: const Text('Log ind'),
               ),
             ),
@@ -186,7 +192,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CreateAccountScreen())),
                 child: const Text('Opret profil'),
               ),
             ),
@@ -199,14 +208,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Opret værelse'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -233,13 +244,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: _priceController,
-                        decoration: customInputDecoration(labelText: 'Pris (DKK)'),
+                        decoration:
+                            customInputDecoration(labelText: 'Pris (DKK)'),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _sizeController,
-                        decoration: customInputDecoration(labelText: 'Størrelse (m²)'),
+                        decoration:
+                            customInputDecoration(labelText: 'Størrelse (m²)'),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
@@ -250,13 +263,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: _roommatesController,
-                        decoration: customInputDecoration(labelText: 'Antal roommates'),
+                        decoration: customInputDecoration(
+                            labelText: 'Antal roommates'),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _descriptionController,
-                        decoration: customInputDecoration(labelText: 'Beskrivelse'),
+                        decoration:
+                            customInputDecoration(labelText: 'Beskrivelse'),
                         maxLines: 3,
                       ),
                       const SizedBox(height: 32),
@@ -265,7 +280,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         child: CustomButtonContainer(
                           child: ElevatedButton(
                             style: customElevatedButtonStyle(),
-                            onPressed: _isUploading ? null : _createApartment,
+                            onPressed:
+                                _isUploading ? null : _createApartment,
                             child: const Text('Upload værelse'),
                           ),
                         ),
