@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-
+import 'package:intl/date_symbol_data_local.dart' as intl;
 import 'firebase_options.dart';
-import '../utils/navigation.dart';
+import 'utils/navigation.dart';
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 const Color primaryColor = Color(0xFFF7F7F7);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await intl.initializeDateFormatting('da');
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -24,13 +26,13 @@ class RoomMatchApp extends StatelessWidget {
     return MaterialApp(
       scaffoldMessengerKey: scaffoldMessengerKey,
       title: 'RoomMatch',
-      theme: _buildThemeData(),
+      theme: _theme(),
       debugShowCheckedModeBanner: false,
       home: const MainScreen(initialIndex: 0),
     );
   }
 
-  ThemeData _buildThemeData() {
+  ThemeData _theme() {
     return ThemeData(
       primaryColor: primaryColor,
       scaffoldBackgroundColor: primaryColor,
