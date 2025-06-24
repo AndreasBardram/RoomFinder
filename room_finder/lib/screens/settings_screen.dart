@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import '../components/custom_button.dart'; // import your customSettingButton
+import 'package:firebase_auth/firebase_auth.dart';
+import '../components/custom_button.dart';
+import 'log_ind_screen.dart';
+import 'opret_profil_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Example layout matching your old style:
+    final bool loggedIn = FirebaseAuth.instance.currentUser != null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -21,13 +24,23 @@ class SettingsScreen extends StatelessWidget {
           children: [
             customSettingButton(
               context: context,
-              label: 'Your Profile',
+              label: loggedIn ? 'Skift bruger' : 'Log ind',
               onPressed: () {
-                // Optionally show a dialog:
-                // showDialog(
-                //   context: context,
-                //   builder: (_) => const CustomYourProfileDialog(),
-                // );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 4),
+            customSettingButton(
+              context: context,
+              label: 'Opret profil',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
+                );
               },
             ),
             const SizedBox(height: 4),
@@ -40,18 +53,6 @@ class SettingsScreen extends StatelessWidget {
             customSettingButton(
               context: context,
               label: 'Terms of Use',
-              onPressed: () {},
-            ),
-            const SizedBox(height: 4),
-            customSettingButton(
-              context: context,
-              label: 'Restore Purchase',
-              onPressed: () {},
-            ),
-            const SizedBox(height: 4),
-            customSettingButton(
-              context: context,
-              label: 'Upgrade to Premium',
               onPressed: () {},
             ),
           ],
