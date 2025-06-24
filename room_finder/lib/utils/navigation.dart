@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import '../screens/find_roommates_screen.dart';
+import '../screens/find_værelse_screen.dart';
 import '../screens/create_listing_screen.dart';
 import '../screens/chat_screen.dart';     
 import '../screens/your_profile_screen.dart';

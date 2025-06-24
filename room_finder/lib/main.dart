@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-import 'screens/login_screen.dart';
 
-/// A global key if you ever need to show SnackBars from anywhere.
+import 'firebase_options.dart';
+import '../utils/navigation.dart';
+
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-/// The primary color you used in the previous project.
 const Color primaryColor = Color(0xFFF7F7F7);
 
 Future<void> main() async {
@@ -27,13 +26,12 @@ class RoomMatchApp extends StatelessWidget {
       title: 'RoomMatch',
       theme: _buildThemeData(),
       debugShowCheckedModeBanner: false,
-      home: const LoginScreen(),
+      home: const MainScreen(initialIndex: 0),
     );
   }
 
   ThemeData _buildThemeData() {
     return ThemeData(
-      // Same color scheme logic from your previous project:
       primaryColor: primaryColor,
       scaffoldBackgroundColor: primaryColor,
       appBarTheme: const AppBarTheme(
