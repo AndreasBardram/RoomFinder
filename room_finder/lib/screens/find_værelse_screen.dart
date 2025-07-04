@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';          // ← hvis ikke allerede i main.dart
+import 'package:firebase_core/firebase_core.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -8,7 +8,7 @@ import 'mere_information.dart';
 import 'settings_screen.dart';
 
 /* ----------------------------------------------------------
- *  Thumbnail-kort for ét værelse / lejlighed
+ *  Thumbnail‑kort for ét værelse / lejlighed
  * --------------------------------------------------------*/
 class ApartmentCard extends StatefulWidget {
   final List<String> images;
@@ -133,7 +133,7 @@ class _ApartmentCardState extends State<ApartmentCard> {
               ),
             ),
 
-            /* ------------------------------------------------ mini-facts */
+            /* ------------------------------------------------ mini‑facts */
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
@@ -178,29 +178,39 @@ class _ApartmentCardState extends State<ApartmentCard> {
 }
 
 /* ----------------------------------------------------------
- *  DRY helper – ens dropdown-rækker
+ *  DRY helper – ens dropdown‑rækker
  * --------------------------------------------------------*/
 Row _ddRow<T>({
   required String label,
   required T? value,
   String? hint,
+  bool allowNull = false,
+  String nullLabel = 'Alle',
   required List<DropdownMenuItem<T>> items,
   required ValueChanged<T?> onChanged,
-}) =>
-    Row(
-      children: [
-        SizedBox(width: 80, child: Text(label)),
-        Expanded(
-          child: DropdownButton<T>(
-            isExpanded: true,
-            value: value,
-            hint: hint != null ? Text(hint) : null,
-            items: items,
-            onChanged: onChanged,
-          ),
+}) {
+  final fullItems = allowNull
+      ? [
+          DropdownMenuItem<T>(value: null, child: Text(nullLabel)),
+          ...items,
+        ]
+      : items;
+
+  return Row(
+    children: [
+      SizedBox(width: 80, child: Text(label)),
+      Expanded(
+        child: DropdownButton<T>(
+          isExpanded: true,
+          value: value,
+          hint: hint != null ? Text(hint) : null,
+          items: fullItems,
+          onChanged: onChanged,
         ),
-      ],
-    );
+      ),
+    ],
+  );
+}
 
 /* ----------------------------------------------------------
  *  MAIN SCREEN
@@ -219,13 +229,19 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   String? _period;
   int? _maxAgeDays;
 
-  static const double _priceMin = 0, _priceMax = 10000;
-  static const int _matesMin = 0, _matesMax = 10;
+  static const double _priceMin = 0,  _priceMax = 10000;
+  static const double _sizeMin  = 0,  _sizeMax  = 200;   // NEW
+  static const int    _matesMin = 0,  _matesMax = 10;
 
   RangeValues _price = RangeValues(_priceMin, _priceMax);
+  RangeValues _size  = RangeValues(_sizeMin, _sizeMax);  // NEW
   RangeValues _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
-  static const _sortChoices = ['Nyeste først', 'Ældst først', 'Pris ↓', 'Pris ↑'];
+  static const _sortChoices = [
+    'Nyeste først', 'Ældst først',
+    'Pris ↓', 'Pris ↑',
+    'Størrelse ↓', 'Størrelse ↑',            // NEW
+  ];
   static const _locations = ['København', 'Østerbro', 'Kongens Lyngby'];
   static const _periods = ['Ubegrænset', '1-3 måneder', '3-6 måneder', '6-12 måneder'];
   static const Map<int, String> _ageChoices = {
@@ -240,23 +256,29 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection('apartments');
 
     debugPrint('[query] loc=$_location period=$_period age=$_maxAgeDays '
-        'price=${_price.start}-${_price.end} mates=${_mates.start}-${_mates.end} sort=$_sort');
+        'price=${_price.start}-${_price.end} size=${_size.start}-${_size.end} '
+        'mates=${_mates.start}-${_mates.end} sort=$_sort');
 
     if (_location != null) q = q.where('location', isEqualTo: _location);
-    if (_period != null) q = q.where('period', isEqualTo: _period);
+    if (_period != null)   q = q.where('period',   isEqualTo: _period);
 
     if (_maxAgeDays != null) {
-      final ts =
-          Timestamp.fromDate(DateTime.now().subtract(Duration(days: _maxAgeDays!)));
+      final ts = Timestamp.fromDate(DateTime.now().subtract(Duration(days: _maxAgeDays!)));
       q = q.where('createdAt', isGreaterThanOrEqualTo: ts);
     }
 
     final priceNeeded = _price.start > _priceMin || _price.end < _priceMax;
-    final mateNeeded = _mates.start > _matesMin || _mates.end < _matesMax;
+    final sizeNeeded  = _size.start  > _sizeMin  || _size.end  < _sizeMax;  // NEW
+    final mateNeeded  = _mates.start > _matesMin || _mates.end < _matesMax;
 
     if (priceNeeded) {
       q = q.where('price',
           isGreaterThanOrEqualTo: _price.start, isLessThanOrEqualTo: _price.end);
+    }
+    if (sizeNeeded) {                                              // NEW
+      q = q.where('size',
+          isGreaterThanOrEqualTo: _size.start,
+          isLessThanOrEqualTo:  _size.end);
     }
     if (mateNeeded) {
       q = q.where('roommates',
@@ -266,21 +288,18 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
 
     /* ---- orderBy ---------------------------------------------------- */
     switch (_sort) {
-      case 'Pris ↓':
-        q = q.orderBy('price', descending: true);
-        break;
-      case 'Pris ↑':
-        q = q.orderBy('price');
-        break;
-      case 'Ældst først':
-        q = q.orderBy('createdAt');
-        break;
-      default:
-        q = q.orderBy('createdAt', descending: true); // Nyeste
+      case 'Pris ↓':        q = q.orderBy('price', descending: true); break;
+      case 'Pris ↑':        q = q.orderBy('price');                  break;
+      case 'Størrelse ↓':   q = q.orderBy('size',  descending: true); break; // NEW
+      case 'Størrelse ↑':   q = q.orderBy('size');                   break; // NEW
+      case 'Ældst først':   q = q.orderBy('createdAt');              break;
+      default:              q = q.orderBy('createdAt', descending: true);
     }
-    /* Sikrer alle inequality-felter også er i orderBy() */
-    if (priceNeeded && !_sort.startsWith('Pris')) q = q.orderBy('price');
-    if (mateNeeded) q = q.orderBy('roommates');
+
+    /* inequality-felter skal også i orderBy() ------------------------ */
+    if (priceNeeded && !_sort.startsWith('Pris'))       q = q.orderBy('price');
+    if (sizeNeeded  && !_sort.startsWith('Størrelse'))  q = q.orderBy('size'); // NEW
+    if (mateNeeded)                                    q = q.orderBy('roommates');
 
     return q;
   }
@@ -290,7 +309,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   Widget build(BuildContext context) {
     final queryKey = ValueKey(
       '$_location|$_period|$_maxAgeDays|'
-      '${_price.start}-${_price.end}|${_mates.start}-${_mates.end}|$_sort',
+      '${_price.start}-${_price.end}|'
+      '${_size.start}-${_size.end}|'          // NEW
+      '${_mates.start}-${_mates.end}|$_sort',
     );
 
     return Scaffold(
@@ -311,8 +332,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
           /* ---------------- Filter-kort ------------------ */
           Card(
             margin: const EdgeInsets.all(16),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ExpansionTile(
               title: const Text('Filtre', style: TextStyle(fontWeight: FontWeight.bold)),
               childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -326,30 +346,30 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                   onChanged: (v) => setState(() => _sort = v ?? _sort),
                 ),
                 const SizedBox(height: 16),
-                _ddRow<String>(
+                _ddRow<String?>(
                   label: 'Lokation',
                   value: _location,
-                  hint: 'Alle',
+                  allowNull: true,
                   items: _locations
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (v) => setState(() => _location = v),
                 ),
                 const SizedBox(height: 16),
-                _ddRow<String>(
+                _ddRow<String?>(
                   label: 'Periode',
                   value: _period,
-                  hint: 'Alle',
+                  allowNull: true,
                   items: _periods
                       .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                       .toList(),
                   onChanged: (v) => setState(() => _period = v),
                 ),
                 const SizedBox(height: 16),
-                _ddRow<int>(
+                _ddRow<int?>(
                   label: 'Oprettet',
                   value: _maxAgeDays,
-                  hint: 'Alle',
+                  allowNull: true,
                   items: _ageChoices.entries
                       .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                       .toList(),
@@ -369,6 +389,21 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                   ),
                   values: _price,
                   onChanged: (v) => setState(() => _price = v),
+                ),
+                const SizedBox(height: 16),
+
+                /* størrelse-slider */                     // NEW
+                Text('Størrelse: ${_size.start.toInt()} – ${_size.end.toInt()} m²'),
+                RangeSlider(
+                  min: _sizeMin,
+                  max: _sizeMax,
+                  divisions: 40,
+                  labels: RangeLabels(
+                    '${_size.start.toInt()} m²',
+                    '${_size.end.toInt()} m²',
+                  ),
+                  values: _size,
+                  onChanged: (v) => setState(() => _size = v),
                 ),
                 const SizedBox(height: 16),
 
@@ -398,6 +433,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       _period = null;
                       _maxAgeDays = null;
                       _price = RangeValues(_priceMin, _priceMax);
+                      _size  = RangeValues(_sizeMin, _sizeMax);     // NEW
                       _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
                     }),
                   ),
