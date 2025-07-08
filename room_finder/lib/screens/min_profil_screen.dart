@@ -25,6 +25,16 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
+  final _firstNameFocus = FocusNode();
+  final _lastNameFocus = FocusNode();
+  final _birthDateFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+
+  bool _editingFirstName = false;
+  bool _editingLastName = false;
+  bool _editingBirthDate = false;
+  bool _editingPhone = false;
+
   String _firstName = '';
   String _lastName = '';
   String _birthDate = '';
@@ -45,6 +55,32 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   void initState() {
     super.initState();
     _loadProfile();
+    _firstNameFocus.addListener(() {
+      setState(() => _editingFirstName = _firstNameFocus.hasFocus);
+    });
+    _lastNameFocus.addListener(() {
+      setState(() => _editingLastName = _lastNameFocus.hasFocus);
+    });
+    _birthDateFocus.addListener(() {
+      setState(() => _editingBirthDate = _birthDateFocus.hasFocus);
+    });
+    _phoneFocus.addListener(() {
+      setState(() => _editingPhone = _phoneFocus.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
+    _birthDateFocus.dispose();
+    _phoneFocus.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -110,7 +146,8 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 style: customElevatedButtonStyle(),
                 onPressed: () => Navigator.push(
                   ctx,
-                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const CreateAccountScreen()),
                 ),
                 child: const Text('Opret profil'),
               ),
@@ -118,6 +155,56 @@ class _YourProfileScreenState extends State<YourProfileScreen>
           ],
         ),
       );
+
+  Widget _buildField({
+    required IconData icon,
+    required bool editing,
+    required FocusNode focusNode,
+    required TextEditingController controller,
+    required String label,
+    TextInputType? keyboardType,
+  }) {
+    if (editing) {
+      return TextField(
+        focusNode: focusNode,
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+        ),
+        keyboardType: keyboardType,
+        onSubmitted: (_) => focusNode.unfocus(),
+      );
+    } else {
+      final display = controller.text.isNotEmpty
+          ? controller.text
+          : '—';
+      return ListTile(
+        leading: Icon(icon, color: Colors.grey[700]),
+        title: Text(
+          display,
+          style: TextStyle(
+            fontSize: 16,
+            color: controller.text.isNotEmpty
+                ? Colors.black
+                : Colors.grey[500],
+          ),
+        ),
+        trailing: const Icon(
+          FluentIcons.edit_24_regular,
+          size: 20,
+          color: Colors.grey,
+        ),
+        onTap: () => FocusScope.of(context).requestFocus(focusNode),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +239,8 @@ class _YourProfileScreenState extends State<YourProfileScreen>
             CircleAvatar(
               radius: 50,
               backgroundColor: Colors.grey[300],
-              child: const Icon(Icons.person, size: 50, color: Colors.white),
+              child:
+                  const Icon(Icons.person, size: 50, color: Colors.white),
             ),
             if (_firstName.isNotEmpty || _lastName.isNotEmpty)
               Padding(
@@ -164,43 +252,76 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 ),
               ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _firstNameController,
-                    decoration:
-                        customInputDecoration(labelText: 'Fornavn'),
+            // Info card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _lastNameController,
-                    decoration:
-                        customInputDecoration(labelText: 'Efternavn'),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _buildField(
+                      icon: FluentIcons.person_24_regular,
+                      editing: _editingFirstName,
+                      focusNode: _firstNameFocus,
+                      controller: _firstNameController,
+                      label: 'Fornavn',
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _birthDateController,
-              decoration: customInputDecoration(
-                  labelText: 'Fødselsdato (YYYY-MM-DD)'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _phoneController,
-              decoration:
-                  customInputDecoration(labelText: 'Telefonnummer'),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailController,
-              decoration: customInputDecoration(labelText: 'E-mail'),
-              enabled: false,
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _buildField(
+                      icon: FluentIcons.person_24_regular,
+                      editing: _editingLastName,
+                      focusNode: _lastNameFocus,
+                      controller: _lastNameController,
+                      label: 'Efternavn',
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _buildField(
+                      icon: FluentIcons.calendar_24_regular,
+                      editing: _editingBirthDate,
+                      focusNode: _birthDateFocus,
+                      controller: _birthDateController,
+                      label: 'Fødselsdato (YYYY-MM-DD)',
+                      keyboardType: TextInputType.datetime,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _buildField(
+                      icon: FluentIcons.phone_24_regular,
+                      editing: _editingPhone,
+                      focusNode: _phoneFocus,
+                      controller: _phoneController,
+                      label: 'Telefonnummer',
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(FluentIcons.mail_24_regular),
+                    title: Text(
+                      _email,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -256,7 +377,8 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                       SizedBox(height: 8),
                       Text(
                         'Ingen aktive opslag.',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        style:
+                            TextStyle(fontSize: 16, color: Colors.grey),
                       ),
                     ],
                   );
