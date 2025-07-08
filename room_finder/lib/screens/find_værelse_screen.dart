@@ -1,166 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../components/apartment_card.dart';
 import 'mere_information.dart';
 import 'settings_screen.dart';
-
-class ApartmentCard extends StatefulWidget {
-  final List<String> images;
-  final String title;
-  final String location;
-  final num price;
-  final double size;
-  final String period;
-  final int roommates;
-
-  const ApartmentCard({
-    super.key,
-    required this.images,
-    required this.title,
-    required this.location,
-    required this.price,
-    required this.size,
-    required this.period,
-    required this.roommates,
-  });
-
-  @override
-  State<ApartmentCard> createState() => _ApartmentCardState();
-}
-
-class _ApartmentCardState extends State<ApartmentCard> {
-  int _page = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasImg = widget.images.isNotEmpty;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.grey.withOpacity(.15),
-              blurRadius: 6,
-              offset: Offset(0, 3))
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: hasImg
-                  ? Stack(
-                      children: [
-                        PageView.builder(
-                          itemCount: widget.images.length,
-                          onPageChanged: (i) => setState(() => _page = i),
-                          itemBuilder: (_, i) => CachedNetworkImage(
-                            imageUrl: widget.images[i],
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(
-                              color: Colors.grey[200],
-                              child: Center(child: Icon(PhosphorIcons.image())),
-                            ),
-                            errorWidget: (_, __, ___) => Container(
-                              color: Colors.grey[200],
-                              child: Center(
-                                  child: Icon(PhosphorIcons.imageSquare())),
-                            ),
-                          ),
-                        ),
-                        if (widget.images.length > 1)
-                          Positioned(
-                            right: 8,
-                            bottom: 8,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(12)),
-                              child: Text(
-                                  '${_page + 1}/${widget.images.length}',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 11)),
-                            ),
-                          ),
-                      ],
-                    )
-                  : Container(
-                      color: Colors.grey[200],
-                      child:
-                          Center(child: Icon(PhosphorIcons.image(), size: 50))),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
-              child: Text(widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.mapPin(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Expanded(
-                    child: Text(widget.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: Colors.black54)),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.currencyDollarSimple(),
-                      size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text('${widget.price.round()} kr.',
-                      style: TextStyle(fontSize: 13)),
-                  Spacer(),
-                  Icon(PhosphorIcons.ruler(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text('${widget.size.toStringAsFixed(0)} m²',
-                      style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.calendar(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Expanded(
-                    child: Text(widget.period,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13)),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(PhosphorIcons.users(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text(widget.roommates.toString(),
-                      style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 Row _ddRow<T>({
   required String label,
@@ -308,116 +151,122 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             margin: EdgeInsets.all(16),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: ExpansionTile(
-              title:
-                  Text('Filtre', style: TextStyle(fontWeight: FontWeight.normal)),
-              childrenPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              trailing: Icon(
-                PhosphorIcons.slidersHorizontal(),
-                color: Colors.grey[700],
-                size: 22,
-              ),
-              children: [
-                _ddRow<String>(
-                  label: 'Sortér',
-                  value: _sort,
-                  items: _sortChoices
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _sort = v ?? _sort),
-                  phosphorIcon: PhosphorIcons.sortAscending(),
+            child: Theme(
+              data:
+                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                title: Text(
+                  'Filtre',
+                  style: TextStyle(fontWeight: FontWeight.normal),
                 ),
-                SizedBox(height: 16),
-                _ddRow<String?>(
-                  label: 'Lokation',
-                  value: _location,
-                  allowNull: true,
-                  items: _locations
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _location = v),
-                  phosphorIcon: PhosphorIcons.mapPin(),
+                trailing: Icon(
+                  PhosphorIcons.slidersHorizontal(),
+                  color: Colors.grey[700],
+                  size: 22,
                 ),
-                SizedBox(height: 16),
-                _ddRow<String?>(
-                  label: 'Periode',
-                  value: _period,
-                  allowNull: true,
-                  items: _periods
-                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _period = v),
-                  phosphorIcon: PhosphorIcons.calendar(),
-                ),
-                SizedBox(height: 16),
-                _ddRow<int?>(
-                  label: 'Oprettet',
-                  value: _maxAgeDays,
-                  allowNull: true,
-                  items: _ageChoices.entries
-                      .map((e) =>
-                          DropdownMenuItem(value: e.key, child: Text(e.value)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _maxAgeDays = v),
-                  phosphorIcon: PhosphorIcons.clock(),
-                ),
-                SizedBox(height: 16),
-                _buildSliderWithIcon(
-                    PhosphorIcons.currencyDollarSimple(),
-                    'Pris',
-                    '${_price.start.toInt()} – ${_price.end.toInt()} kr.'),
-                RangeSlider(
-                  min: _priceMin,
-                  max: _priceMax,
-                  divisions: 100,
-                  labels: RangeLabels('${_price.start.toInt()} kr.',
-                      '${_price.end.toInt()} kr.'),
-                  values: _price,
-                  onChanged: (v) => setState(() => _price = v),
-                ),
-                SizedBox(height: 16),
-                _buildSliderWithIcon(PhosphorIcons.ruler(), 'Størrelse',
-                    '${_size.start.toInt()} – ${_size.end.toInt()} m²'),
-                RangeSlider(
-                  min: _sizeMin,
-                  max: _sizeMax,
-                  divisions: 40,
-                  labels: RangeLabels(
-                      '${_size.start.toInt()} m²', '${_size.end.toInt()} m²'),
-                  values: _size,
-                  onChanged: (v) => setState(() => _size = v),
-                ),
-                SizedBox(height: 16),
-                _buildSliderWithIcon(PhosphorIcons.users(), 'Roommates',
-                    '${_mates.start.toInt()} – ${_mates.end.toInt()}'),
-                RangeSlider(
-                  min: _matesMin.toDouble(),
-                  max: _matesMax.toDouble(),
-                  divisions: 10,
-                  labels: RangeLabels(_mates.start.round().toString(),
-                      _mates.end.round().toString()),
-                  values: _mates,
-                  onChanged: (v) => setState(() => _mates = v),
-                ),
-                SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    icon: Icon(PhosphorIcons.arrowCounterClockwise()),
-                    label: Text('Nulstil filtre'),
-                    onPressed: () => setState(() {
-                      _location = null;
-                      _period = null;
-                      _maxAgeDays = null;
-                      _price = RangeValues(_priceMin, _priceMax);
-                      _size = RangeValues(_sizeMin, _sizeMax);
-                      _mates = RangeValues(
-                          _matesMin.toDouble(), _matesMax.toDouble());
-                    }),
+                childrenPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                children: [
+                  _ddRow<String>(
+                    label: 'Sortér',
+                    value: _sort,
+                    items: _sortChoices
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _sort = v ?? _sort),
+                    phosphorIcon: PhosphorIcons.sortAscending(),
                   ),
-                ),
-              ],
+                  SizedBox(height: 16),
+                  _ddRow<String?>(
+                    label: 'Lokation',
+                    value: _location,
+                    allowNull: true,
+                    items: _locations
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _location = v),
+                    phosphorIcon: PhosphorIcons.mapPin(),
+                  ),
+                  SizedBox(height: 16),
+                  _ddRow<String?>(
+                    label: 'Periode',
+                    value: _period,
+                    allowNull: true,
+                    items: _periods
+                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _period = v),
+                    phosphorIcon: PhosphorIcons.calendar(),
+                  ),
+                  SizedBox(height: 16),
+                  _ddRow<int?>(
+                    label: 'Oprettet',
+                    value: _maxAgeDays,
+                    allowNull: true,
+                    items: _ageChoices.entries
+                        .map((e) => DropdownMenuItem(
+                            value: e.key, child: Text(e.value)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _maxAgeDays = v),
+                    phosphorIcon: PhosphorIcons.clock(),
+                  ),
+                  SizedBox(height: 16),
+                  _buildSliderWithIcon(
+                      PhosphorIcons.currencyDollarSimple(),
+                      'Pris',
+                      '${_price.start.toInt()} – ${_price.end.toInt()} kr.'),
+                  RangeSlider(
+                    min: _priceMin,
+                    max: _priceMax,
+                    divisions: 100,
+                    labels: RangeLabels('${_price.start.toInt()} kr.',
+                        '${_price.end.toInt()} kr.'),
+                    values: _price,
+                    onChanged: (v) => setState(() => _price = v),
+                  ),
+                  SizedBox(height: 16),
+                  _buildSliderWithIcon(PhosphorIcons.ruler(), 'Størrelse',
+                      '${_size.start.toInt()} – ${_size.end.toInt()} m²'),
+                  RangeSlider(
+                    min: _sizeMin,
+                    max: _sizeMax,
+                    divisions: 40,
+                    labels: RangeLabels(
+                        '${_size.start.toInt()} m²', '${_size.end.toInt()} m²'),
+                    values: _size,
+                    onChanged: (v) => setState(() => _size = v),
+                  ),
+                  SizedBox(height: 16),
+                  _buildSliderWithIcon(PhosphorIcons.users(), 'Roommates',
+                      '${_mates.start.toInt()} – ${_mates.end.toInt()}'),
+                  RangeSlider(
+                    min: _matesMin.toDouble(),
+                    max: _matesMax.toDouble(),
+                    divisions: 10,
+                    labels: RangeLabels(_mates.start.round().toString(),
+                        _mates.end.round().toString()),
+                    values: _mates,
+                    onChanged: (v) => setState(() => _mates = v),
+                  ),
+                  SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      icon: Icon(PhosphorIcons.arrowCounterClockwise()),
+                      label: Text('Nulstil filtre'),
+                      onPressed: () => setState(() {
+                        _location = null;
+                        _period = null;
+                        _maxAgeDays = null;
+                        _price = RangeValues(_priceMin, _priceMax);
+                        _size = RangeValues(_sizeMin, _sizeMax);
+                        _mates = RangeValues(
+                            _matesMin.toDouble(), _matesMax.toDouble());
+                      }),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -451,7 +300,8 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => MoreInformationScreen(data: d))),
+                              builder: (_) =>
+                                  MoreInformationScreen(data: d))),
                       child: ApartmentCard(
                         images: images,
                         title: d['title'] ?? '',

@@ -3,57 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/custom_styles.dart';
+import '../components/apartment_card.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
-
-class ApartmentCard extends StatelessWidget {
-  final String location;
-  final double price;
-  const ApartmentCard({super.key, required this.location, required this.price});
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: Column(
-            children: [
-              Container(
-                color: Colors.grey[200],
-                height: 100,
-                child: const Center(child: Icon(Icons.image, size: 50)),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(location,
-                    textAlign: TextAlign.center,
-                    style:
-                        const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text('DKK ${price.toStringAsFixed(0)}',
-                    style:
-                        const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        ),
-      );
-}
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({super.key});
@@ -96,18 +49,13 @@ class _YourProfileScreenState extends State<YourProfileScreen>
 
   Future<void> _loadProfile() async {
     final u = FirebaseAuth.instance.currentUser;
-    if (u == null) {
-      debugPrint('[profile] no user');
-      return;
-    }
-    final snap =
-        await FirebaseFirestore.instance.collection('users').doc(u.uid).get();
-    if (!snap.exists) {
-      debugPrint('[profile] doc not found');
-      return;
-    }
+    if (u == null) return;
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(u.uid)
+        .get();
+    if (!snap.exists) return;
     final d = snap.data()!;
-    debugPrint('[profile] loaded: $d');
     setState(() {
       _firstName = d['firstName'] ?? '';
       _lastName = d['lastName'] ?? '';
@@ -126,14 +74,17 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   Future<void> _saveProfile() async {
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
-      'firstName': _firstNameController.text.trim(),
-      'lastName': _lastNameController.text.trim(),
-      'birthDate': _birthDateController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'email': u.email,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(u.uid)
+        .set({
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'birthDate': _birthDateController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'email': u.email,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
     _loadProfile();
   }
 
@@ -143,25 +94,25 @@ class _YourProfileScreenState extends State<YourProfileScreen>
           children: [
             SizedBox(
               width: 200,
-              child: CustomButtonContainer(
-                child: ElevatedButton(
-                  style: customElevatedButtonStyle(),
-                  onPressed: () =>
-                      Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                  child: const Text('Log ind'),
+              child: ElevatedButton(
+                style: customElevatedButtonStyle(),
+                onPressed: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                 ),
+                child: const Text('Log ind'),
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: 200,
-              child: CustomButtonContainer(
-                child: ElevatedButton(
-                  style: customElevatedButtonStyle(),
-                  onPressed: () => Navigator.push(
-                      ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
-                  child: const Text('Opret profil'),
+              child: ElevatedButton(
+                style: customElevatedButtonStyle(),
+                onPressed: () => Navigator.push(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
                 ),
+                child: const Text('Opret profil'),
               ),
             ),
           ],
@@ -173,17 +124,23 @@ class _YourProfileScreenState extends State<YourProfileScreen>
     super.build(context);
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) {
-      return Scaffold(appBar: AppBar(title: const Text('Din profil')), body: _loggedOut(context));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Din profil')),
+        body: _loggedOut(context),
+      );
     }
     final uid = u.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Din profil'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () =>
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
@@ -202,8 +159,8 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   '$_firstName $_lastName${_age != null ? ', $_age år' : ''}',
-                  style:
-                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
             const SizedBox(height: 24),
@@ -212,14 +169,16 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 Expanded(
                   child: TextField(
                     controller: _firstNameController,
-                    decoration: customInputDecoration(labelText: 'Fornavn'),
+                    decoration:
+                        customInputDecoration(labelText: 'Fornavn'),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: TextField(
                     controller: _lastNameController,
-                    decoration: customInputDecoration(labelText: 'Efternavn'),
+                    decoration:
+                        customInputDecoration(labelText: 'Efternavn'),
                   ),
                 ),
               ],
@@ -227,12 +186,14 @@ class _YourProfileScreenState extends State<YourProfileScreen>
             const SizedBox(height: 16),
             TextField(
               controller: _birthDateController,
-              decoration: customInputDecoration(labelText: 'Fødselsdato (YYYY-MM-DD)'),
+              decoration: customInputDecoration(
+                  labelText: 'Fødselsdato (YYYY-MM-DD)'),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _phoneController,
-              decoration: customInputDecoration(labelText: 'Telefonnummer'),
+              decoration:
+                  customInputDecoration(labelText: 'Telefonnummer'),
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 16),
@@ -244,21 +205,18 @@ class _YourProfileScreenState extends State<YourProfileScreen>
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: CustomButtonContainer(
-                child: ElevatedButton(
-                  style: customElevatedButtonStyle(),
-                  onPressed: _saveProfile,
-                  child: const Text('Gem ændringer'),
-                ),
+              child: ElevatedButton(
+                style: customElevatedButtonStyle(),
+                onPressed: _saveProfile,
+                child: const Text('Gem ændringer'),
               ),
             ),
             const SizedBox(height: 32),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Dine opslag',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              'Dine opslag',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -268,7 +226,6 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                   .where('ownedBy', isEqualTo: uid)
                   .get(),
               builder: (_, snap) {
-                debugPrint('[future] state=${snap.connectionState} error=${snap.error}');
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
@@ -282,22 +239,25 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                   );
                 }
                 final docs = snap.data?.docs ?? [];
-                debugPrint('[future] docs=${docs.length}');
                 docs.sort((a, b) {
-                  final tA = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-                  final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+                  final tA = (a['createdAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
+                  final tB = (b['createdAt'] as Timestamp?)
+                          ?.millisecondsSinceEpoch ??
+                      0;
                   return tB.compareTo(tA);
                 });
-                for (var d in docs) {
-                  debugPrint('[future] doc=${d.id} ownedBy=${d['ownedBy']} location=${d['location']}');
-                }
                 if (docs.isEmpty) {
                   return Column(
                     children: const [
-                      Icon(FluentIcons.home_24_regular, size: 40, color: Colors.grey),
+                      Icon(FluentIcons.home_24_regular,
+                          size: 40, color: Colors.grey),
                       SizedBox(height: 8),
-                      Text('Ingen aktive opslag.',
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text(
+                        'Ingen aktive opslag.',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
                     ],
                   );
                 }
@@ -305,18 +265,29 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 0.75,
+                    childAspectRatio: 0.65,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (_, i) {
                     final d = docs[i].data();
-                    final loc = d['location'] ?? 'Ukendt';
-                    final prc = (d['price'] ?? 0).toDouble();
-                    return ApartmentCard(location: loc, price: prc);
+                    final images = (d['imageUrls'] as List?)
+                            ?.whereType<String>()
+                            .toList() ??
+                        [];
+                    return ApartmentCard(
+                      images: images,
+                      title: d['title'] ?? '',
+                      location: d['location'] ?? 'Ukendt',
+                      price: d['price'] ?? 0,
+                      size: (d['size'] ?? 0).toDouble(),
+                      period: d['period'] ?? '',
+                      roommates: (d['roommates'] ?? 0) as int,
+                    );
                   },
                 );
               },
