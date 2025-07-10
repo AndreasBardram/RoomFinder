@@ -40,17 +40,18 @@ class _ApartmentCardState extends State<ApartmentCard> {
           BoxShadow(
             color: Colors.grey.withOpacity(.15),
             blurRadius: 6,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: AspectRatio(
+              aspectRatio: 1,
               child: hasImg
                   ? Stack(
                       children: [
@@ -75,14 +76,14 @@ class _ApartmentCardState extends State<ApartmentCard> {
                             right: 8,
                             bottom: 8,
                             child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.black54,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 '${_page + 1}/${widget.images.length}',
-                                style: TextStyle(color: Colors.white, fontSize: 11),
+                                style: const TextStyle(color: Colors.white, fontSize: 11),
                               ),
                             ),
                           ),
@@ -93,78 +94,78 @@ class _ApartmentCardState extends State<ApartmentCard> {
                       child: Center(child: Icon(PhosphorIcons.image(), size: 50)),
                     ),
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
-              child: Text(
-                widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: Text(
+              widget.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.mapPin(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      widget.location,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13, color: Colors.black54),
-                    ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            child: Row(
+              children: [
+                Icon(PhosphorIcons.mapPin(), size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    widget.location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.currencyDollarSimple(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text(
-                    '${widget.price.round()} kr.',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                  Spacer(),
-                  Icon(PhosphorIcons.ruler(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text(
-                    '${widget.size.toStringAsFixed(0)} m²',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Row(
+              children: [
+                Icon(PhosphorIcons.currencyDollarSimple(), size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${widget.price.round()} kr.',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const Spacer(),
+                Icon(PhosphorIcons.ruler(), size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${widget.size.toStringAsFixed(0)} m²',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  Icon(PhosphorIcons.calendar(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      widget.period,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13),
-                    ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
+              children: [
+                Icon(PhosphorIcons.calendar(), size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    widget.period,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
                   ),
-                  SizedBox(width: 4),
-                  Icon(PhosphorIcons.users(), size: 14, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text(
-                    widget.roommates.toString(),
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                Icon(PhosphorIcons.users(), size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  widget.roommates.toString(),
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
