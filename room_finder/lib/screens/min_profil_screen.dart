@@ -86,10 +86,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   Future<void> _loadProfile() async {
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(u.uid)
-        .get();
+    final snap = await FirebaseFirestore.instance.collection('users').doc(u.uid).get();
     if (!snap.exists) return;
     final d = snap.data()!;
     setState(() {
@@ -110,17 +107,14 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   Future<void> _saveProfile() async {
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(u.uid)
-        .set({
-          'firstName': _firstNameController.text.trim(),
-          'lastName': _lastNameController.text.trim(),
-          'birthDate': _birthDateController.text.trim(),
-          'phone': _phoneController.text.trim(),
-          'email': u.email,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'birthDate': _birthDateController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'email': u.email,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     _loadProfile();
   }
 
@@ -146,8 +140,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 style: customElevatedButtonStyle(),
                 onPressed: () => Navigator.push(
                   ctx,
-                  MaterialPageRoute(
-                      builder: (_) => const CreateAccountScreen()),
+                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
                 ),
                 child: const Text('Opret profil'),
               ),
@@ -170,37 +163,21 @@ class _YourProfileScreenState extends State<YourProfileScreen>
         controller: controller,
         decoration: InputDecoration(
           labelText: label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         ),
         keyboardType: keyboardType,
         onSubmitted: (_) => focusNode.unfocus(),
       );
     } else {
-      final display = controller.text.isNotEmpty
-          ? controller.text
-          : '—';
+      final display = controller.text.isNotEmpty ? controller.text : '—';
       return ListTile(
         leading: Icon(icon, color: Colors.grey[700]),
         title: Text(
           display,
-          style: TextStyle(
-            fontSize: 16,
-            color: controller.text.isNotEmpty
-                ? Colors.black
-                : Colors.grey[500],
-          ),
+          style: TextStyle(fontSize: 16, color: controller.text.isNotEmpty ? Colors.black : Colors.grey[500]),
         ),
-        trailing: const Icon(
-          FluentIcons.edit_24_regular,
-          size: 20,
-          color: Colors.grey,
-        ),
+        trailing: const Icon(FluentIcons.edit_24_regular, size: 20, color: Colors.grey),
         onTap: () => FocusScope.of(context).requestFocus(focusNode),
       );
     }
@@ -224,10 +201,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -239,30 +213,23 @@ class _YourProfileScreenState extends State<YourProfileScreen>
             CircleAvatar(
               radius: 50,
               backgroundColor: Colors.grey[300],
-              child:
-                  const Icon(Icons.person, size: 50, color: Colors.white),
+              child: const Icon(Icons.person, size: 50, color: Colors.white),
             ),
             if (_firstName.isNotEmpty || _lastName.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   '$_firstName $_lastName${_age != null ? ', $_age år' : ''}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
             const SizedBox(height: 24),
-            // Info card
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(.15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
+                  BoxShadow(color: Colors.grey.withOpacity(.15), blurRadius: 6, offset: const Offset(0, 3)),
                 ],
               ),
               child: Column(
@@ -315,10 +282,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(FluentIcons.mail_24_regular),
-                    title: Text(
-                      _email,
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                    title: Text(_email, style: const TextStyle(fontSize: 16)),
                   ),
                 ],
               ),
@@ -335,17 +299,11 @@ class _YourProfileScreenState extends State<YourProfileScreen>
             const SizedBox(height: 32),
             const Divider(),
             const SizedBox(height: 10),
-            const Text(
-              'Dine opslag',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text('Dine opslag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
               key: ValueKey(DateTime.now()),
-              future: FirebaseFirestore.instance
-                  .collection('apartments')
-                  .where('ownedBy', isEqualTo: uid)
-                  .get(),
+              future: FirebaseFirestore.instance.collection('apartments').where('ownedBy', isEqualTo: uid).get(),
               builder: (_, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Padding(
@@ -361,54 +319,50 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 }
                 final docs = snap.data?.docs ?? [];
                 docs.sort((a, b) {
-                  final tA = (a['createdAt'] as Timestamp?)
-                          ?.millisecondsSinceEpoch ??
-                      0;
-                  final tB = (b['createdAt'] as Timestamp?)
-                          ?.millisecondsSinceEpoch ??
-                      0;
+                  final tA = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+                  final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
                   return tB.compareTo(tA);
                 });
                 if (docs.isEmpty) {
                   return Column(
                     children: const [
-                      Icon(FluentIcons.home_24_regular,
-                          size: 40, color: Colors.grey),
+                      Icon(FluentIcons.home_24_regular, size: 40, color: Colors.grey),
                       SizedBox(height: 8),
-                      Text(
-                        'Ingen aktive opslag.',
-                        style:
-                            TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
+                      Text('Ingen aktive opslag.', style: TextStyle(fontSize: 16, color: Colors.grey)),
                     ],
                   );
                 }
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.65,
-                  ),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final d = docs[i].data();
-                    final images = (d['imageUrls'] as List?)
-                            ?.whereType<String>()
-                            .toList() ??
-                        [];
-                    return ApartmentCard(
-                      images: images,
-                      title: d['title'] ?? '',
-                      location: d['location'] ?? 'Ukendt',
-                      price: d['price'] ?? 0,
-                      size: (d['size'] ?? 0).toDouble(),
-                      period: d['period'] ?? '',
-                      roommates: (d['roommates'] ?? 0) as int,
+                return LayoutBuilder(
+                  builder: (ctx, constraints) {
+                    const count = 2;
+                    const hPad = 8.0;
+                    const spacing = 16.0;
+                    final w = (constraints.maxWidth - hPad * 2 - spacing * (count - 1)) / count;
+                    final h = w + 124;
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: count,
+                        crossAxisSpacing: spacing,
+                        mainAxisSpacing: spacing,
+                        mainAxisExtent: h,
+                      ),
+                      itemCount: docs.length,
+                      itemBuilder: (_, i) {
+                        final d = docs[i].data();
+                        final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
+                        return ApartmentCard(
+                          images: images,
+                          title: d['title'] ?? '',
+                          location: d['location'] ?? 'Ukendt',
+                          price: d['price'] ?? 0,
+                          size: (d['size'] ?? 0).toDouble(),
+                          period: d['period'] ?? '',
+                          roommates: (d['roommates'] ?? 0) as int,
+                        );
+                      },
                     );
                   },
                 );
