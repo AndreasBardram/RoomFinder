@@ -21,6 +21,9 @@ dependencies:
   cached_network_image: ^3.3.1
   intl: ^0.19.0  
   phosphor_flutter: ^2.1.0
+  flutter_chat_ui: ^1.6.6  
+  flutter_firebase_chat_core: ^1.6.8
+  flutter_chat_types:        ^3.5.1
 
 dev_dependencies:
   flutter_test:

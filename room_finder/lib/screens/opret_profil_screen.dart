@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
+import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import '../components/custom_styles.dart';
 import '../utils/navigation.dart';
 
@@ -26,35 +27,27 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        birthDate.isEmpty ||
-        phone.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty) {
+    if ([firstName, lastName, birthDate, phone, email, password].any((e) => e.isEmpty)) {
       _showMessage('Udfyld alle felter.');
       return;
     }
-
     try {
-      final cred = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
-      final uid = cred.user?.uid;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'firstName': firstName,
-          'lastName': lastName,
-          'birthDate': birthDate,
-          'phone': phone,
-          'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)),
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
+      final uid = cred.user!.uid;
+      await FirebaseChatCore.instance.createUserInFirestore(
+        types.User(
+          id: uid,
+          firstName: firstName,
+          lastName: lastName,
+          metadata: {
+            'phone': phone,
+            'birthDate': birthDate,
+            'email': email,
+          },
+        ),
       );
+      if (!mounted) return;
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
     } on FirebaseAuthException catch (e) {
       _showMessage('Fejl: ${e.message}');
     } catch (_) {
