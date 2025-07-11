@@ -2,11 +2,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
+import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'chat_screen.dart';
 
 class MoreInformationScreen extends StatelessWidget {
   final Map<String, dynamic> data;
   const MoreInformationScreen({super.key, required this.data});
+
+  /* ─────────────────────────  UI  ───────────────────────── */
 
   @override
   Widget build(BuildContext context) {
@@ -18,12 +24,13 @@ class MoreInformationScreen extends StatelessWidget {
     final roommates   = (data['roommates'] ?? 0) as int;
     final description = data['description'] ?? '';
     final images      = List<String>.from(data['imageUrls'] ?? []);
-    final ts          = data['createdAt'];
+
     DateTime? created;
-    if (ts != null) {
+    if (data['createdAt'] != null) {
       created = DateTime.fromMillisecondsSinceEpoch(
-          ts.millisecondsSinceEpoch,
-          isUtc: true);
+        data['createdAt'].millisecondsSinceEpoch,
+        isUtc: true,
+      );
     }
     final createdStr = created != null
         ? DateFormat('d. MMMM y • HH:mm', 'da').format(created.toLocal())
@@ -36,111 +43,123 @@ class MoreInformationScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              height: 260,
-              child: images.isEmpty
-                  ? Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Center(child: Icon(Icons.photo, size: 60)))
-                  : PageView.builder(
-                      itemCount: images.length,
-                      itemBuilder: (_, i) => ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
-                          imageUrl: images[i],
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) =>
-                              Container(color: Colors.grey[200]),
-                          errorWidget: (_, __, ___) =>
-                              Container(color: Colors.grey[200]),
-                        ),
-                      ),
-                    ),
-            ),
+            _imageCarousel(images),
             const SizedBox(height: 20),
             Text(location,
-                style: GoogleFonts.roboto(
-                    fontSize: 22, fontWeight: FontWeight.bold)),
+                style: GoogleFonts.roboto(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('DKK ${price.toStringAsFixed(0)}',
-                style: GoogleFonts.roboto(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
+                style: GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text('📏 ', style: TextStyle(fontSize: 16)),
-                Text('${size.toStringAsFixed(0)} m²',
-                    style: GoogleFonts.roboto(fontSize: 16)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Text('📆 ', style: TextStyle(fontSize: 16)),
-                Text(period, style: GoogleFonts.roboto(fontSize: 16)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Text('👥 ', style: TextStyle(fontSize: 16)),
-                Text(roommates.toString(),
-                    style: GoogleFonts.roboto(fontSize: 16)),
-              ],
-            ),
+            _infoRow('📏 ', '${size.toStringAsFixed(0)} m²'),
+            _infoRow('📆 ', period),
+            _infoRow('👥 ', roommates.toString()),
             const SizedBox(height: 4),
             Text('Oprettet: $createdStr',
                 style: GoogleFonts.roboto(fontSize: 14, color: Colors.grey)),
             const SizedBox(height: 20),
             Text(description, style: GoogleFonts.roboto(fontSize: 16)),
             const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () => _showConfirm(context),
-                child: const Text('Send ansøgning',
-                    style: TextStyle(fontSize: 16)),
-              ),
-            ),
+            _applyButton(context),
           ],
         ),
       ),
     );
   }
 
-  void _showConfirm(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Send ansøgning?'),
-        content: const Text('Bekræft for at åbne chatten og sende ansøgningen.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuller'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ChatScreen()),
-              );
-            },
-            child: const Text('Bekræft'),
-          ),
+  /* ────────────────────────  widgets  ─────────────────────── */
+
+  Widget _imageCarousel(List<String> images) => SizedBox(
+        height: 260,
+        child: images.isEmpty
+            ? Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(child: Icon(Icons.photo, size: 60)))
+            : PageView.builder(
+                itemCount: images.length,
+                itemBuilder: (_, i) => ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: images[i],
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: Colors.grey[200]),
+                    errorWidget: (_, __, ___) => Container(color: Colors.grey[200]),
+                  ),
+                ),
+              ),
+      );
+
+  Widget _infoRow(String icon, String text) => Row(
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 16)),
+          Text(text, style: GoogleFonts.roboto(fontSize: 16)),
         ],
-      ),
+      );
+
+  Widget _applyButton(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            textStyle: const TextStyle(fontSize: 16),
+          ),
+          onPressed: () => _startChat(context),           // ← go straight to chat
+          child: const Text('Send ansøgning'),
+        ),
+      );
+
+  /* ────────────────────────  chat logic  ───────────────────── */
+
+  Future<void> _startChat(BuildContext context) async {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) {
+      debugPrint('DEBUG startChat: no logged-in user');
+      return;
+    }
+
+    final ownerUid = data['ownedBy'] as String?;
+    debugPrint('DEBUG startChat: ownerUid=$ownerUid  myUid=${me.uid}');
+
+    if (ownerUid == null || ownerUid == me.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Du kan ikke chatte med dig selv.')),
+      );
+      return;
+    }
+
+    final ownerSnap =
+        await FirebaseFirestore.instance.collection('users').doc(ownerUid).get();
+    if (!ownerSnap.exists) {
+      debugPrint('DEBUG startChat: owner profile not found');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Brugerprofil ikke fundet.')),
+      );
+      return;
+    }
+
+    final d = ownerSnap.data()!;
+    final owner = types.User(
+      id: ownerUid,
+      firstName: d['firstName'],
+      lastName:  d['lastName'],
+      imageUrl:  d['imageUrl'],
+      metadata:  d,
+    );
+
+    debugPrint('DEBUG startChat: creating / reusing room …');
+    final room = await FirebaseChatCore.instance.createRoom(owner);
+    debugPrint('DEBUG startChat: roomId=${room.id}');
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ChatScreen(room: room)),
     );
   }
 }
