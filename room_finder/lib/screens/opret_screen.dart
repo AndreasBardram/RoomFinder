@@ -19,6 +19,7 @@ class CreateListingScreen extends StatefulWidget {
 class _CreateListingScreenState extends State<CreateListingScreen> {
   final _titleController       = TextEditingController();
   final _locationController    = TextEditingController();
+  final _addressController     = TextEditingController();
   final _priceController       = TextEditingController();
   final _sizeController        = TextEditingController();
   final _periodController      = TextEditingController();
@@ -33,6 +34,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   void dispose() {
     _titleController.dispose();
     _locationController.dispose();
+    _addressController.dispose();
     _priceController.dispose();
     _sizeController.dispose();
     _periodController.dispose();
@@ -100,6 +102,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     final title       = _titleController.text.trim();
     final location    = _locationController.text.trim();
+    final address     = _addressController.text.trim();
     final price       = double.tryParse(_priceController.text.trim());
     final size        = double.tryParse(_sizeController.text.trim());
     final period      = _periodController.text.trim();
@@ -108,6 +111,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     if (title.isEmpty ||
         location.isEmpty ||
+        address.isEmpty ||
         price == null ||
         size == null ||
         period.isEmpty ||
@@ -132,6 +136,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'ownerLastName'  : ownerData['lastName'] ?? '',
         'title'          : title,
         'location'       : location,
+        'address'        : address,
         'price'          : price,
         'size'           : size,
         'period'         : period,
@@ -151,6 +156,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
       _titleController.clear();
       _locationController.clear();
+      _addressController.clear();
       _priceController.clear();
       _sizeController.clear();
       _periodController.clear();
@@ -240,6 +246,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       TextField(
                         controller: _locationController,
                         decoration: customInputDecoration(labelText: 'Lokation'),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _addressController,
+                        decoration: customInputDecoration(labelText: 'Adresse'),
                       ),
                       const SizedBox(height: 16),
                       TextField(
