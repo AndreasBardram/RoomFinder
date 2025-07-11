@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/navigation.dart';
 import '../components/custom_styles.dart';
 
@@ -23,6 +24,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        {'lastSeen': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      );
+      if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
     } on FirebaseAuthException catch (e) {
       _showMessage('Login failed: ${e.message}');
