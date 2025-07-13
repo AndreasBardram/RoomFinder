@@ -9,6 +9,7 @@ import '../components/custom_styles.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
+import '../components/postcode_json.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
@@ -243,10 +244,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                         decoration: customInputDecoration(labelText: 'Titel'),
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: _locationController,
-                        decoration: customInputDecoration(labelText: 'Lokation'),
-                      ),
+                      PostnrField(controller: _locationController),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _addressController,
