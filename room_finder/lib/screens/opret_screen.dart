@@ -9,7 +9,7 @@ import '../components/custom_styles.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
-import '../components/postcode_json.dart';
+import '../components/postcode_enter_field.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
