@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:http/http.dart' as http;
-import 'custom_styles.dart';
 
 class PostcodeFilterField extends StatelessWidget {
   final TextEditingController controller;
@@ -27,29 +26,24 @@ class PostcodeFilterField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TypeAheadField<String>(
-      controller: controller,
+      controller: controller,                 // external controller
       suggestionsCallback: _fetch,
       hideOnEmpty: true,
       hideOnError: true,
-      builder: (context, c, f) => TextField(
-        controller: c,
-        focusNode: f,
-        decoration: customInputDecoration(labelText: 'Lokation').copyWith(
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.clear, size: 18),
-            onPressed: () {
-              controller.clear();
-              onSelected(null);
-            },
-          ),
-        ),
-        keyboardType: TextInputType.number,
+      // use the SAME controller so the text updates visibly
+      builder: (context, _ignored, focus) => TextField(
+        controller: controller,
+        focusNode: focus,
+        decoration: const InputDecoration.collapsed(hintText: 'Alle'),
       ),
       itemBuilder: (_, s) => ListTile(title: Text(s)),
-      onSelected: onSelected,
+      onSelected: (s) {
+        controller.text = s;        
+        onSelected(s);                
+      },
       decorationBuilder: (_, child) => Material(
         elevation: 4,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: child,
       ),
     );

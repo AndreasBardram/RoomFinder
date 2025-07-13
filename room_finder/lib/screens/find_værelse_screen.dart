@@ -44,6 +44,7 @@ class FindRoommatesScreen extends StatefulWidget {
 
 class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   final _locCtl = TextEditingController();
+
   String _sort = 'Nyeste først';
   String? _location;
   String? _period;
@@ -54,11 +55,11 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   static const int _matesMin = 0, _matesMax = 10;
 
   RangeValues _price = const RangeValues(_priceMin, _priceMax);
-  RangeValues _size = const RangeValues(_sizeMin, _sizeMax);
+  RangeValues _size  = const RangeValues(_sizeMin,  _sizeMax);
   RangeValues _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
   static const _sortChoices = ['Nyeste først', 'Ældst først', 'Pris ↓', 'Pris ↑', 'Størrelse ↓', 'Størrelse ↑'];
-  static const _periods = ['Ubegrænset', '1-3 måneder', '3-6 måneder', '6-12 måneder'];
+  static const _periods     = ['Ubegrænset', '1-3 måneder', '3-6 måneder', '6-12 måneder'];
   static const Map<int, String> _ageChoices = {1: 'Seneste 24 timer', 3: 'Seneste 3 dage', 7: 'Seneste uge', 30: 'Seneste måned'};
 
   @override
@@ -70,46 +71,37 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   Query<Map<String, dynamic>> _buildQuery() {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection('apartments');
     if (_location != null) q = q.where('location', isEqualTo: _location);
-    if (_period != null) q = q.where('period', isEqualTo: _period);
+    if (_period   != null) q = q.where('period',   isEqualTo: _period);
     if (_maxAgeDays != null) {
       final ts = Timestamp.fromDate(DateTime.now().subtract(Duration(days: _maxAgeDays!)));
       q = q.where('createdAt', isGreaterThanOrEqualTo: ts);
     }
     final priceNeeded = _price.start > _priceMin || _price.end < _priceMax;
-    final sizeNeeded = _size.start > _sizeMin || _size.end < _sizeMax;
-    final mateNeeded = _mates.start > _matesMin || _mates.end < _matesMax;
-    if (priceNeeded) q = q.where('price', isGreaterThanOrEqualTo: _price.start, isLessThanOrEqualTo: _price.end);
-    if (sizeNeeded) q = q.where('size', isGreaterThanOrEqualTo: _size.start, isLessThanOrEqualTo: _size.end);
-    if (mateNeeded) q = q.where('roommates', isGreaterThanOrEqualTo: _mates.start.round(), isLessThanOrEqualTo: _mates.end.round());
+    final sizeNeeded  = _size.start  > _sizeMin  || _size.end  < _sizeMax;
+    final mateNeeded  = _mates.start > _matesMin || _mates.end < _matesMax;
+    if (priceNeeded) q = q.where('price',     isGreaterThanOrEqualTo: _price.start, isLessThanOrEqualTo: _price.end);
+    if (sizeNeeded)  q = q.where('size',      isGreaterThanOrEqualTo: _size.start,  isLessThanOrEqualTo: _size.end);
+    if (mateNeeded)  q = q.where('roommates', isGreaterThanOrEqualTo: _mates.start.round(), isLessThanOrEqualTo: _mates.end.round());
     switch (_sort) {
-      case 'Pris ↓':
-        q = q.orderBy('price', descending: true);
-        break;
-      case 'Pris ↑':
-        q = q.orderBy('price');
-        break;
-      case 'Størrelse ↓':
-        q = q.orderBy('size', descending: true);
-        break;
-      case 'Størrelse ↑':
-        q = q.orderBy('size');
-        break;
-      case 'Ældst først':
-        q = q.orderBy('createdAt');
-        break;
-      default:
-        q = q.orderBy('createdAt', descending: true);
+      case 'Pris ↓':      q = q.orderBy('price',     descending: true); break;
+      case 'Pris ↑':      q = q.orderBy('price');                       break;
+      case 'Størrelse ↓': q = q.orderBy('size',      descending: true); break;
+      case 'Størrelse ↑': q = q.orderBy('size');                        break;
+      case 'Ældst først': q = q.orderBy('createdAt');                   break;
+      default:            q = q.orderBy('createdAt', descending: true);
     }
-    if (priceNeeded && !_sort.startsWith('Pris')) q = q.orderBy('price');
-    if (sizeNeeded && !_sort.startsWith('Størrelse')) q = q.orderBy('size');
-    if (mateNeeded) q = q.orderBy('roommates');
+    if (priceNeeded && !_sort.startsWith('Pris'))      q = q.orderBy('price');
+    if (sizeNeeded  && !_sort.startsWith('Størrelse')) q = q.orderBy('size');
+    if (mateNeeded)                                    q = q.orderBy('roommates');
     return q;
   }
 
   @override
   Widget build(BuildContext context) {
     final queryKey = ValueKey(
-        '$_location|$_period|$_maxAgeDays|${_price.start}-${_price.end}|${_size.start}-${_size.end}|${_mates.start}-${_mates.end}|$_sort');
+      '$_location|$_period|$_maxAgeDays|${_price.start}-${_price.end}|${_size.start}-${_size.end}|${_mates.start}-${_mates.end}|$_sort',
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Find Roommates'),
@@ -145,9 +137,15 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                     children: [
                       const SizedBox(width: 80, child: Text('Lokation')),
                       Expanded(
-                        child: PostcodeFilterField(
-                          controller: _locCtl,
-                          onSelected: (s) => setState(() => _location = s),
+                        child: Stack(
+                          alignment: Alignment.centerRight,
+                          children: [
+                            PostcodeFilterField(
+                              controller: _locCtl,
+                              onSelected: (s) => setState(() => _location = s),
+                            ),
+                            Icon(PhosphorIcons.caretDown(), size: 18, color: Colors.grey[700]),
+                          ],
                         ),
                       ),
                     ],
@@ -208,11 +206,11 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       label: const Text('Nulstil filtre'),
                       onPressed: () => setState(() {
                         _locCtl.clear();
-                        _location = null;
-                        _period = null;
+                        _location   = null;
+                        _period     = null;
                         _maxAgeDays = null;
                         _price = const RangeValues(_priceMin, _priceMax);
-                        _size = const RangeValues(_sizeMin, _sizeMax);
+                        _size  = const RangeValues(_sizeMin,  _sizeMax);
                         _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
                       }),
                     ),
