@@ -14,8 +14,7 @@ class YourProfileScreen extends StatefulWidget {
   State<YourProfileScreen> createState() => _YourProfileScreenState();
 }
 
-class _YourProfileScreenState extends State<YourProfileScreen>
-    with AutomaticKeepAliveClientMixin {
+class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
@@ -55,18 +54,10 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   void initState() {
     super.initState();
     _loadProfile();
-    _firstNameFocus.addListener(() {
-      setState(() => _editingFirstName = _firstNameFocus.hasFocus);
-    });
-    _lastNameFocus.addListener(() {
-      setState(() => _editingLastName = _lastNameFocus.hasFocus);
-    });
-    _birthDateFocus.addListener(() {
-      setState(() => _editingBirthDate = _birthDateFocus.hasFocus);
-    });
-    _phoneFocus.addListener(() {
-      setState(() => _editingPhone = _phoneFocus.hasFocus);
-    });
+    _firstNameFocus.addListener(() => setState(() => _editingFirstName = _firstNameFocus.hasFocus));
+    _lastNameFocus.addListener(() => setState(() => _editingLastName = _lastNameFocus.hasFocus));
+    _birthDateFocus.addListener(() => setState(() => _editingBirthDate = _birthDateFocus.hasFocus));
+    _phoneFocus.addListener(() => setState(() => _editingPhone = _phoneFocus.hasFocus));
   }
 
   @override
@@ -126,10 +117,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
               width: 200,
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                ),
+                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
                 child: const Text('Log ind'),
               ),
             ),
@@ -138,10 +126,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
               width: 200,
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
-                ),
+                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
                 child: const Text('Opret profil'),
               ),
             ),
@@ -149,7 +134,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
         ),
       );
 
-  Widget _buildField({
+  Widget _fieldRow({
     required IconData icon,
     required bool editing,
     required FocusNode focusNode,
@@ -158,29 +143,46 @@ class _YourProfileScreenState extends State<YourProfileScreen>
     TextInputType? keyboardType,
   }) {
     if (editing) {
-      return TextField(
-        focusNode: focusNode,
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        ),
-        keyboardType: keyboardType,
-        onSubmitted: (_) => focusNode.unfocus(),
-      );
-    } else {
-      final display = controller.text.isNotEmpty ? controller.text : '—';
-      return ListTile(
-        leading: Icon(icon, color: Colors.grey[700]),
-        title: Text(
-          display,
-          style: TextStyle(fontSize: 16, color: controller.text.isNotEmpty ? Colors.black : Colors.grey[500]),
-        ),
-        trailing: const Icon(FluentIcons.edit_24_regular, size: 20, color: Colors.grey),
-        onTap: () => FocusScope.of(context).requestFocus(focusNode),
+      return Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[700]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              focusNode: focusNode,
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: label,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              keyboardType: keyboardType,
+              onSubmitted: (_) => focusNode.unfocus(),
+            ),
+          ),
+        ],
       );
     }
+    final display = controller.text.isNotEmpty ? controller.text : '—';
+    return InkWell(
+      onTap: () => FocusScope.of(context).requestFocus(focusNode),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: Colors.grey[700]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                display,
+                style: TextStyle(fontSize: 16, color: controller.text.isNotEmpty ? Colors.black : Colors.grey[500]),
+              ),
+            ),
+            Icon(FluentIcons.edit_24_regular, size: 18, color: Colors.grey[600]),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -206,7 +208,10 @@ class _YourProfileScreenState extends State<YourProfileScreen>
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
+        onRefresh: () async {
+          await _loadProfile();
+          setState(() {});
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -224,41 +229,31 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                 ),
               ),
             const SizedBox(height: 24),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: Colors.grey.withOpacity(.15), blurRadius: 6, offset: const Offset(0, 3)),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: _buildField(
+            Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    _fieldRow(
                       icon: FluentIcons.person_24_regular,
                       editing: _editingFirstName,
                       focusNode: _firstNameFocus,
                       controller: _firstNameController,
                       label: 'Fornavn',
                     ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: _buildField(
+                    const Divider(height: 1),
+                    _fieldRow(
                       icon: FluentIcons.person_24_regular,
                       editing: _editingLastName,
                       focusNode: _lastNameFocus,
                       controller: _lastNameController,
                       label: 'Efternavn',
                     ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: _buildField(
+                    const Divider(height: 1),
+                    _fieldRow(
                       icon: FluentIcons.calendar_24_regular,
                       editing: _editingBirthDate,
                       focusNode: _birthDateFocus,
@@ -266,11 +261,8 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                       label: 'Fødselsdato (YYYY-MM-DD)',
                       keyboardType: TextInputType.datetime,
                     ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: _buildField(
+                    const Divider(height: 1),
+                    _fieldRow(
                       icon: FluentIcons.phone_24_regular,
                       editing: _editingPhone,
                       focusNode: _phoneFocus,
@@ -278,13 +270,19 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                       label: 'Telefonnummer',
                       keyboardType: TextInputType.phone,
                     ),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(FluentIcons.mail_24_regular),
-                    title: Text(_email, style: const TextStyle(fontSize: 16)),
-                  ),
-                ],
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(FluentIcons.mail_24_regular, size: 18),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
