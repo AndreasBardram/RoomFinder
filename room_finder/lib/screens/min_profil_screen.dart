@@ -25,21 +25,41 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   final _phoneController     = TextEditingController();
   final _emailController     = TextEditingController();
 
+  final _linkControllers = <String, TextEditingController>{
+    'instagram': TextEditingController(),
+    'facebook':  TextEditingController(),
+    'whatsapp':  TextEditingController(),
+    'website':   TextEditingController(),
+  };
+
   final _firstNameFocus = FocusNode();
   final _lastNameFocus  = FocusNode();
   final _birthDateFocus = FocusNode();
   final _phoneFocus     = FocusNode();
+  final _linkFocus = <String, FocusNode>{
+    'instagram': FocusNode(),
+    'facebook':  FocusNode(),
+    'whatsapp':  FocusNode(),
+    'website':   FocusNode(),
+  };
 
   bool _editingFirstName = false;
   bool _editingLastName  = false;
   bool _editingBirthDate = false;
   bool _editingPhone     = false;
+  final _editingLink = <String, bool>{
+    'instagram': false,
+    'facebook':  false,
+    'whatsapp':  false,
+    'website':   false,
+  };
 
   String _firstName = '';
   String _lastName  = '';
   String _birthDate = '';
   String _phone     = '';
   String _email     = '';
+  String _imageUrl  = '';
   int?   _age;
 
   int? _calcAge(String d) {
@@ -59,6 +79,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     _lastNameFocus.addListener(_lastNameListener);
     _birthDateFocus.addListener(_birthDateListener);
     _phoneFocus.addListener(_phoneListener);
+    for (final k in _linkFocus.keys) {
+      _linkFocus[k]!.addListener(() => _linkListener(k));
+    }
   }
 
   @override
@@ -68,18 +91,18 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     _birthDateController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
-    _firstNameFocus
-      ..removeListener(_firstNameListener)
-      ..dispose();
-    _lastNameFocus
-      ..removeListener(_lastNameListener)
-      ..dispose();
-    _birthDateFocus
-      ..removeListener(_birthDateListener)
-      ..dispose();
-    _phoneFocus
-      ..removeListener(_phoneListener)
-      ..dispose();
+    _firstNameFocus.removeListener(_firstNameListener);
+    _lastNameFocus.removeListener(_lastNameListener);
+    _birthDateFocus.removeListener(_birthDateListener);
+    _phoneFocus.removeListener(_phoneListener);
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
+    _birthDateFocus.dispose();
+    _phoneFocus.dispose();
+    for (final k in _linkControllers.keys) {
+      _linkControllers[k]!.dispose();
+      _linkFocus[k]!.dispose();
+    }
     super.dispose();
   }
 
@@ -115,6 +138,14 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     setState(() => _editingPhone = f);
   }
 
+  void _linkListener(String p) {
+    final f = _linkFocus[p]!.hasFocus;
+    if (!f && _linkControllers[p]!.text.trim().isNotEmpty) {
+      _saveField('links.$p', _linkControllers[p]!.text);
+    }
+    setState(() => _editingLink[p] = f);
+  }
+
   void _showUpdated() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -132,10 +163,12 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   Future<void> _saveField(String key, String value) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-      {key: value.trim(), 'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
+    var path = key;
+    if (key == 'phone' || key == 'birthDate') path = 'metadata.$key';
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      path: value.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
     await _loadProfile();
     _showUpdated();
   }
@@ -146,46 +179,28 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (!snap.exists) return;
     final d = snap.data()!;
+    final meta  = (d['metadata'] as Map<String, dynamic>?) ?? {};
+    final links = (d['links']    as Map<String, dynamic>?) ?? {};
     setState(() {
       _firstName  = d['firstName']  ?? '';
       _lastName   = d['lastName']   ?? '';
-      _birthDate  = d['birthDate']  ?? '';
-      _phone      = d['phone']      ?? '';
-      _email      = user.email      ?? '';
+      _birthDate  = meta['birthDate'] ?? d['birthDate'] ?? '';
+      _phone      = meta['phone']     ?? d['phone']     ?? '';
+      _imageUrl   = d['imageUrl']     ?? '';
+      _email      = user.email ?? '';
       _age        = _calcAge(_birthDate);
 
-      _firstNameController.text  = _firstName;
-      _lastNameController.text   = _lastName;
-      _birthDateController.text  = _birthDate;
-      _phoneController.text      = _phone;
-      _emailController.text      = _email;
+      _firstNameController.text = _firstName;
+      _lastNameController.text  = _lastName;
+      _birthDateController.text = _birthDate;
+      _phoneController.text     = _phone;
+      _emailController.text     = _email;
+
+      for (final k in _linkControllers.keys) {
+        _linkControllers[k]!.text = links[k]?.toString() ?? '';
+      }
     });
   }
-
-  Widget _loggedOut(BuildContext ctx) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                child: const Text('Log ind'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
-                child: const Text('Opret profil'),
-              ),
-            ),
-          ],
-        ),
-      );
 
   Widget _fieldRow({
     required IconData icon,
@@ -238,6 +253,15 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     );
   }
 
+  Widget _linkRow(String p, IconData icon, String label) => _fieldRow(
+        icon: icon,
+        editing: _editingLink[p]!,
+        focusNode: _linkFocus[p]!,
+        controller: _linkControllers[p]!,
+        label: label,
+        keyboardType: TextInputType.url,
+      );
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -249,6 +273,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
       );
     }
     final uid = user.uid;
+
+    final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
+        '${_age != null ? ', $_age år' : ''}';
 
     return Scaffold(
       appBar: AppBar(
@@ -268,19 +295,32 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.grey[300],
-              child: const Icon(Icons.person, size: 50, color: Colors.white),
-            ),
-            if (_firstName.isNotEmpty || _lastName.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '$_firstName $_lastName${_age != null ? ', $_age år' : ''}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                alignment: Alignment.bottomLeft,
+                children: [
+                  SizedBox(
+                    height: 220,
+                    width: double.infinity,
+                    child: _imageUrl.isNotEmpty
+                        ? Image.network(_imageUrl, fit: BoxFit.cover)
+                        : Container(
+                            color: Colors.grey[300],
+                            child: const Center(child: Icon(Icons.person, size: 60, color: Colors.white)),
+                          ),
+                  ),
+                  if (nameAge.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        nameAge,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
               ),
+            ),
             const SizedBox(height: 24),
             Card(
               margin: EdgeInsets.zero,
@@ -334,6 +374,26 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                         ],
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    _linkRow('instagram', FluentIcons.camera_24_regular, 'Instagram'),
+                    const Divider(height: 1),
+                    _linkRow('facebook',  FluentIcons.people_team_24_regular, 'Facebook'),
+                    const Divider(height: 1),
+                    _linkRow('whatsapp',  FluentIcons.chat_24_regular, 'WhatsApp'),
+                    const Divider(height: 1),
+                    _linkRow('website',   FluentIcons.globe_24_regular, 'Website'),
                   ],
                 ),
               ),
@@ -418,4 +478,29 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
       ),
     );
   }
+
+  Widget _loggedOut(BuildContext ctx) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 200,
+              child: ElevatedButton(
+                style: customElevatedButtonStyle(),
+                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                child: const Text('Log ind'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 200,
+              child: ElevatedButton(
+                style: customElevatedButtonStyle(),
+                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
+                child: const Text('Opret profil'),
+              ),
+            ),
+          ],
+        ),
+      );
 }
