@@ -19,6 +19,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  String? _intent;
 
   Future<void> _createAccount() async {
     final firstName = _firstNameController.text.trim();
@@ -27,12 +28,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    if ([firstName, lastName, birthDate, phone, email, password].any((e) => e.isEmpty)) {
-      _showMessage('Udfyld alle felter.');
+    if ([firstName, lastName, birthDate, phone, email, password]
+            .any((e) => e.isEmpty) ||
+        _intent == null) {
+      _showMessage('Udfyld alle felter og vælg om du vil leje eller udleje.');
       return;
     }
     try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
       final uid = cred.user!.uid;
       await FirebaseChatCore.instance.createUserInFirestore(
         types.User(
@@ -43,11 +47,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             'phone': phone,
             'birthDate': birthDate,
             'email': email,
+            'intent': _intent,
           },
         ),
       );
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
+      Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
     } on FirebaseAuthException catch (e) {
       _showMessage('Fejl: ${e.message}');
     } catch (_) {
@@ -96,16 +102,24 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       Expanded(
                         child: TextField(
                           controller: _firstNameController,
-                          decoration: customInputDecoration(labelText: 'Fornavn'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                          decoration:
+                              customInputDecoration(labelText: 'Fornavn'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontSize: 14),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: TextField(
                           controller: _lastNameController,
-                          decoration: customInputDecoration(labelText: 'Efternavn'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                          decoration:
+                              customInputDecoration(labelText: 'Efternavn'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontSize: 14),
                         ),
                       ),
                     ],
@@ -113,29 +127,69 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _birthDateController,
-                    decoration: customInputDecoration(labelText: 'Fødselsdato (YYYY-MM-DD)'),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    decoration: customInputDecoration(
+                        labelText: 'Fødselsdato (YYYY-MM-DD)'),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _phoneController,
-                    decoration: customInputDecoration(labelText: 'Telefonnummer'),
+                    decoration:
+                        customInputDecoration(labelText: 'Telefonnummer'),
                     keyboardType: TextInputType.phone,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _emailController,
                     decoration: customInputDecoration(labelText: 'E-mail'),
                     keyboardType: TextInputType.emailAddress,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _passwordController,
                     decoration: customInputDecoration(labelText: 'Password'),
                     obscureText: true,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Hvad vil du?',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 14)),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Jeg vil leje'),
+                        selected: _intent == 'rent',
+                        onSelected: (_) => setState(() => _intent = 'rent'),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Jeg vil udleje'),
+                        selected: _intent == 'rentOut',
+                        onSelected: (_) => setState(() => _intent = 'rentOut'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -146,7 +200,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         onPressed: _createAccount,
                         child: Text(
                           'Opret profil',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontSize: 16),
                         ),
                       ),
                     ),

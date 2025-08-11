@@ -15,59 +15,63 @@ class YourProfileScreen extends StatefulWidget {
   State<YourProfileScreen> createState() => _YourProfileScreenState();
 }
 
-class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKeepAliveClientMixin {
+class _YourProfileScreenState extends State<YourProfileScreen>
+    with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
+  String _intent = '';
+  bool _editingIntent = false;
 
   final _firstNameController = TextEditingController();
-  final _lastNameController  = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _birthDateController = TextEditingController();
-  final _phoneController     = TextEditingController();
-  final _emailController     = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
 
   final _linkControllers = <String, TextEditingController>{
     'instagram': TextEditingController(),
-    'facebook':  TextEditingController(),
-    'whatsapp':  TextEditingController(),
-    'website':   TextEditingController(),
+    'facebook': TextEditingController(),
+    'whatsapp': TextEditingController(),
+    'website': TextEditingController(),
   };
 
   final _firstNameFocus = FocusNode();
-  final _lastNameFocus  = FocusNode();
+  final _lastNameFocus = FocusNode();
   final _birthDateFocus = FocusNode();
-  final _phoneFocus     = FocusNode();
+  final _phoneFocus = FocusNode();
   final _linkFocus = <String, FocusNode>{
     'instagram': FocusNode(),
-    'facebook':  FocusNode(),
-    'whatsapp':  FocusNode(),
-    'website':   FocusNode(),
+    'facebook': FocusNode(),
+    'whatsapp': FocusNode(),
+    'website': FocusNode(),
   };
 
   bool _editingFirstName = false;
-  bool _editingLastName  = false;
+  bool _editingLastName = false;
   bool _editingBirthDate = false;
-  bool _editingPhone     = false;
+  bool _editingPhone = false;
   final _editingLink = <String, bool>{
     'instagram': false,
-    'facebook':  false,
-    'whatsapp':  false,
-    'website':   false,
+    'facebook': false,
+    'whatsapp': false,
+    'website': false,
   };
 
   String _firstName = '';
-  String _lastName  = '';
+  String _lastName = '';
   String _birthDate = '';
-  String _phone     = '';
-  String _email     = '';
-  String _imageUrl  = '';
-  int?   _age;
+  String _phone = '';
+  String _email = '';
+  String _imageUrl = '';
+  int? _age;
 
   int? _calcAge(String d) {
     final dt = DateTime.tryParse(d);
     if (dt == null) return null;
     final now = DateTime.now();
     var y = now.year - dt.year;
-    if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) y--;
+    if (now.month < dt.month || (now.month == dt.month && now.day < dt.day))
+      y--;
     return y;
   }
 
@@ -164,7 +168,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     var path = key;
-    if (key == 'phone' || key == 'birthDate') path = 'metadata.$key';
+    if (key == 'phone' || key == 'birthDate' || key == 'intent')
+      path = 'metadata.$key';
     await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
       path: value.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -176,25 +181,29 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   Future<void> _loadProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
     if (!snap.exists) return;
     final d = snap.data()!;
-    final meta  = (d['metadata'] as Map<String, dynamic>?) ?? {};
-    final links = (d['links']    as Map<String, dynamic>?) ?? {};
+    final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
+    final links = (d['links'] as Map<String, dynamic>?) ?? {};
     setState(() {
-      _firstName  = d['firstName']  ?? '';
-      _lastName   = d['lastName']   ?? '';
-      _birthDate  = meta['birthDate'] ?? d['birthDate'] ?? '';
-      _phone      = meta['phone']     ?? d['phone']     ?? '';
-      _imageUrl   = d['imageUrl']     ?? '';
-      _email      = user.email ?? '';
-      _age        = _calcAge(_birthDate);
+      _firstName = d['firstName'] ?? '';
+      _lastName = d['lastName'] ?? '';
+      _birthDate = meta['birthDate'] ?? d['birthDate'] ?? '';
+      _phone = meta['phone'] ?? d['phone'] ?? '';
+      _imageUrl = d['imageUrl'] ?? '';
+      _email = user.email ?? '';
+      _age = _calcAge(_birthDate);
+      _intent = meta['intent']?.toString() ?? '';
 
       _firstNameController.text = _firstName;
-      _lastNameController.text  = _lastName;
+      _lastNameController.text = _lastName;
       _birthDateController.text = _birthDate;
-      _phoneController.text     = _phone;
-      _emailController.text     = _email;
+      _phoneController.text = _phone;
+      _emailController.text = _email;
 
       for (final k in _linkControllers.keys) {
         _linkControllers[k]!.text = links[k]?.toString() ?? '';
@@ -221,8 +230,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
               controller: controller,
               decoration: InputDecoration(
                 labelText: label,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               keyboardType: keyboardType,
               onSubmitted: (_) => focusNode.unfocus(),
@@ -243,10 +254,15 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
             Expanded(
               child: Text(
                 display,
-                style: TextStyle(fontSize: 16, color: controller.text.isNotEmpty ? Colors.black : Colors.grey[500]),
+                style: TextStyle(
+                    fontSize: 16,
+                    color: controller.text.isNotEmpty
+                        ? Colors.black
+                        : Colors.grey[500]),
               ),
             ),
-            Icon(FluentIcons.edit_24_regular, size: 18, color: Colors.grey[600]),
+            Icon(FluentIcons.edit_24_regular,
+                size: 18, color: Colors.grey[600]),
           ],
         ),
       ),
@@ -261,6 +277,68 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
         label: label,
         keyboardType: TextInputType.url,
       );
+  String _intentLabel(String v) {
+    if (v == 'rent') return 'Jeg vil leje';
+    if (v == 'rentOut') return 'Jeg vil udleje';
+    return '—';
+  }
+
+  Widget _intentRow() {
+    if (_editingIntent) {
+      return Row(
+        children: [
+          const Icon(FluentIcons.arrow_swap_24_regular, size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Jeg vil leje'),
+                  selected: _intent == 'rent',
+                  onSelected: (_) {
+                    setState(() => _intent = 'rent');
+                    _saveField('intent', 'rent');
+                    setState(() => _editingIntent = false);
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Jeg vil udleje'),
+                  selected: _intent == 'rentOut',
+                  onSelected: (_) {
+                    setState(() => _intent = 'rentOut');
+                    _saveField('intent', 'rentOut');
+                    setState(() => _editingIntent = false);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    return InkWell(
+      onTap: () => setState(() => _editingIntent = true),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            const Icon(FluentIcons.arrow_swap_24_regular, size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Text(_intentLabel(_intent),
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: _intent.isNotEmpty
+                            ? Colors.black
+                            : Colors.grey[500]))),
+            Icon(FluentIcons.edit_24_regular,
+                size: 18, color: Colors.grey[600]),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +352,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     }
     final uid = user.uid;
 
-    final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
+    final nameAge =
+        '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
         '${_age != null ? ', $_age år' : ''}';
 
     return Scaffold(
@@ -283,7 +362,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -307,7 +387,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                         ? Image.network(_imageUrl, fit: BoxFit.cover)
                         : Container(
                             color: Colors.grey[300],
-                            child: const Center(child: Icon(Icons.person, size: 60, color: Colors.white)),
+                            child: const Center(
+                                child: Icon(Icons.person,
+                                    size: 60, color: Colors.white)),
                           ),
                   ),
                   if (nameAge.trim().isNotEmpty)
@@ -315,7 +397,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         nameAge,
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                 ],
@@ -324,10 +409,12 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
             const SizedBox(height: 24),
             Card(
               margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               elevation: 3,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Column(
                   children: [
                     _fieldRow(
@@ -363,6 +450,69 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                       label: 'Telefonnummer',
                       keyboardType: TextInputType.phone,
                     ),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Column(
+                          children: [
+                            _fieldRow(
+                              icon: FluentIcons.person_24_regular,
+                              editing: _editingFirstName,
+                              focusNode: _firstNameFocus,
+                              controller: _firstNameController,
+                              label: 'Fornavn',
+                            ),
+                            const Divider(height: 1),
+                            _fieldRow(
+                              icon: FluentIcons.person_24_regular,
+                              editing: _editingLastName,
+                              focusNode: _lastNameFocus,
+                              controller: _lastNameController,
+                              label: 'Efternavn',
+                            ),
+                            const Divider(height: 1),
+                            _fieldRow(
+                              icon: FluentIcons.calendar_24_regular,
+                              editing: _editingBirthDate,
+                              focusNode: _birthDateFocus,
+                              controller: _birthDateController,
+                              label: 'Fødselsdato (YYYY-MM-DD)',
+                              keyboardType: TextInputType.datetime,
+                            ),
+                            const Divider(height: 1),
+                            _fieldRow(
+                              icon: FluentIcons.phone_24_regular,
+                              editing: _editingPhone,
+                              focusNode: _phoneFocus,
+                              controller: _phoneController,
+                              label: 'Telefonnummer',
+                              keyboardType: TextInputType.phone,
+                            ),
+                            const Divider(height: 1),
+                            _intentRow(),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  const Icon(FluentIcons.mail_24_regular,
+                                      size: 18),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                      child: Text(_email,
+                                          style:
+                                              const TextStyle(fontSize: 16))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -370,7 +520,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                         children: [
                           const Icon(FluentIcons.mail_24_regular, size: 18),
                           const SizedBox(width: 12),
-                          Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
+                          Expanded(
+                              child: Text(_email,
+                                  style: const TextStyle(fontSize: 16))),
                         ],
                       ),
                     ),
@@ -381,19 +533,25 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
             const SizedBox(height: 16),
             Card(
               margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               elevation: 3,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Column(
                   children: [
-                    _linkRow('instagram', FluentIcons.camera_24_regular, 'Instagram'),
+                    _linkRow('instagram', FluentIcons.camera_24_regular,
+                        'Instagram'),
                     const Divider(height: 1),
-                    _linkRow('facebook',  FluentIcons.people_team_24_regular, 'Facebook'),
+                    _linkRow('facebook', FluentIcons.people_team_24_regular,
+                        'Facebook'),
                     const Divider(height: 1),
-                    _linkRow('whatsapp',  FluentIcons.chat_24_regular, 'WhatsApp'),
+                    _linkRow(
+                        'whatsapp', FluentIcons.chat_24_regular, 'WhatsApp'),
                     const Divider(height: 1),
-                    _linkRow('website',   FluentIcons.globe_24_regular, 'Website'),
+                    _linkRow(
+                        'website', FluentIcons.globe_24_regular, 'Website'),
                   ],
                 ),
               ),
@@ -401,7 +559,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 10),
-            const Text('Dine opslag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Dine opslag',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
               key: ValueKey(DateTime.now()),
@@ -424,16 +583,22 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                 }
                 final docs = snap.data?.docs ?? [];
                 docs.sort((a, b) {
-                  final tA = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-                  final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+                  final tA =
+                      (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                          0;
+                  final tB =
+                      (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                          0;
                   return tB.compareTo(tA);
                 });
                 if (docs.isEmpty) {
                   return Column(
                     children: const [
-                      Icon(FluentIcons.home_24_regular, size: 40, color: Colors.grey),
+                      Icon(FluentIcons.home_24_regular,
+                          size: 40, color: Colors.grey),
                       SizedBox(height: 8),
-                      Text('Ingen aktive opslag.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text('Ingen aktive opslag.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey)),
                     ],
                   );
                 }
@@ -442,7 +607,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                     const count = 2;
                     const hPad = 8.0;
                     const spacing = 16.0;
-                    final w = (constraints.maxWidth - hPad * 2 - spacing * (count - 1)) / count;
+                    final w = (constraints.maxWidth -
+                            hPad * 2 -
+                            spacing * (count - 1)) /
+                        count;
                     final h = w + 124;
                     return GridView.builder(
                       shrinkWrap: true,
@@ -457,7 +625,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                       itemCount: docs.length,
                       itemBuilder: (_, i) {
                         final d = docs[i].data();
-                        final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
+                        final images = (d['imageUrls'] as List?)
+                                ?.whereType<String>()
+                                .toList() ??
+                            [];
                         return ApartmentCard(
                           images: images,
                           title: d['title'] ?? '',
@@ -487,7 +658,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
               width: 200,
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                onPressed: () => Navigator.push(ctx,
+                    MaterialPageRoute(builder: (_) => const LoginScreen())),
                 child: const Text('Log ind'),
               ),
             ),
@@ -496,7 +668,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
               width: 200,
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
+                onPressed: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                        builder: (_) => const CreateAccountScreen())),
                 child: const Text('Opret profil'),
               ),
             ),
