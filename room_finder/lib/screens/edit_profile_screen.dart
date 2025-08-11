@@ -1,4 +1,3 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -52,6 +51,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    final bioRaw = _bioController.text.trim();
+    final bio = bioRaw.length > 200 ? bioRaw.substring(0, 200) : bioRaw;
     final updates = <String, dynamic>{
       'firstName': _firstNameController.text.trim(),
       'lastName': _lastNameController.text.trim(),
@@ -59,34 +60,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'metadata.phone': _phoneController.text.trim(),
       'metadata.intent': _intent ?? '',
       'metadata.social': _socialController.text.trim(),
-      'metadata.bio': _bioController.text.trim().substring(0, _bioController.text.trim().length.clamp(0, 200)),
+      'metadata.bio': bio,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updates);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil opdateret')));
     Navigator.pop(context, true);
-  }
-
-  Widget _field(IconData icon, String label, TextEditingController c, {TextInputType? type, bool readOnly = false}) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[700]),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextField(
-            controller: c,
-            readOnly: readOnly,
-            decoration: InputDecoration(
-              labelText: label,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-            keyboardType: type,
-          ),
-        ),
-      ],
-    );
   }
 
   @override
@@ -100,6 +80,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _bioController.dispose();
     super.dispose();
   }
+
+  Widget _sectionTitle(String text) => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -118,17 +103,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _field(FluentIcons.person_24_regular, 'Fornavn', _firstNameController),
+                    _sectionTitle('Kontakt og info'),
                     const SizedBox(height: 12),
-                    _field(FluentIcons.person_24_regular, 'Efternavn', _lastNameController),
+                    TextField(
+                      controller: _firstNameController,
+                      decoration: customInputDecoration(labelText: 'Fornavn'),
+                    ),
                     const SizedBox(height: 12),
-                    _field(FluentIcons.calendar_24_regular, 'Fødselsdato (YYYY-MM-DD)', _birthDateController, type: TextInputType.datetime),
+                    TextField(
+                      controller: _lastNameController,
+                      decoration: customInputDecoration(labelText: 'Efternavn'),
+                    ),
                     const SizedBox(height: 12),
-                    _field(FluentIcons.phone_24_regular, 'Telefonnummer', _phoneController, type: TextInputType.phone),
+                    TextField(
+                      controller: _birthDateController,
+                      keyboardType: TextInputType.datetime,
+                      decoration: customInputDecoration(labelText: 'Fødselsdato (YYYY-MM-DD)'),
+                    ),
                     const SizedBox(height: 12),
-                    _field(FluentIcons.mail_24_regular, 'E-mail', _emailController, readOnly: true),
+                    TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: customInputDecoration(labelText: 'Telefonnummer'),
+                    ),
                     const SizedBox(height: 12),
-                    _field(FluentIcons.globe_24_regular, 'Social media', _socialController, type: TextInputType.url),
+                    TextField(
+                      controller: _emailController,
+                      readOnly: true,
+                      decoration: customInputDecoration(labelText: 'E-mail'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _socialController,
+                      keyboardType: TextInputType.url,
+                      decoration: customInputDecoration(labelText: 'Social media (link eller handle)'),
+                    ),
                     const SizedBox(height: 16),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -151,17 +160,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Align(alignment: Alignment.centerLeft, child: Text('Beskrivelse', style: Theme.of(context).textTheme.titleMedium)),
+                    _sectionTitle('Beskrivelse'),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _bioController,
                       maxLines: 5,
                       maxLength: 200,
-                      decoration: InputDecoration(
-                        hintText: 'Skriv kort om dig selv (max 200 tegn)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
+                      decoration: customInputDecoration(labelText: 'Skriv kort om dig selv (max 200 tegn)'),
                     ),
                   ],
                 ),
@@ -170,10 +175,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: _save,
-                child: const Text('Gem ændringer'),
+              child: CustomButtonContainer(
+                child: ElevatedButton(
+                  style: customElevatedButtonStyle(),
+                  onPressed: _save,
+                  child: const Text('Gem ændringer'),
+                ),
               ),
             ),
           ],

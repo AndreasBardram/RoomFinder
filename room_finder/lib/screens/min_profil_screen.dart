@@ -85,12 +85,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     } else {
       label = 'Ikke valgt';
     }
-    return Chip(
-      label: Text(label),
-      avatar: const Icon(FluentIcons.arrow_swap_24_regular, size: 16),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-    );
+    return Chip(label: Text(label));
   }
 
   Widget _header() {
@@ -116,10 +111,10 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.3, 0.7, 1.0],
+                    stops: const [0.0, 0.6, 1.0],
                     colors: [
                       Colors.black.withOpacity(0.0),
-                      Colors.black.withOpacity(0.25),
+                      Colors.black.withOpacity(0.2),
                       Colors.black.withOpacity(0.55),
                     ],
                   ),
@@ -135,14 +130,11 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                 children: [
                   Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     child: CircleAvatar(
-                      radius: 32,
+                      radius: 36,
                       backgroundImage: _imageUrl.isNotEmpty ? NetworkImage(_imageUrl) : null,
-                      child: _imageUrl.isEmpty ? const Icon(Icons.person, size: 28) : null,
+                      child: _imageUrl.isEmpty ? const Icon(Icons.person, size: 32) : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -227,13 +219,13 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                   children: [
                     Align(alignment: Alignment.centerLeft, child: Text('Kontakt og info', style: Theme.of(context).textTheme.titleMedium)),
                     const SizedBox(height: 12),
-                    _infoRow(FluentIcons.mail_24_regular, 'E-mail', _email),
+                    _infoRow(Icons.mail_outline, 'E-mail', _email),
                     const Divider(height: 1),
-                    _infoRow(FluentIcons.phone_24_regular, 'Telefonnummer', _phone),
+                    _infoRow(Icons.phone_outlined, 'Telefonnummer', _phone),
                     const Divider(height: 1),
-                    _infoRow(FluentIcons.calendar_24_regular, 'Fødselsdato', _birthDate),
+                    _infoRow(Icons.event_outlined, 'Fødselsdato', _birthDate),
                     const Divider(height: 1),
-                    _infoRow(FluentIcons.globe_24_regular, 'Social media', _social),
+                    _infoRow(Icons.public, 'Social media', _social),
                     const SizedBox(height: 16),
                     Align(alignment: Alignment.centerLeft, child: Text('Beskrivelse', style: Theme.of(context).textTheme.titleMedium)),
                     const SizedBox(height: 8),
@@ -247,13 +239,15 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        style: customElevatedButtonStyle(),
-                        onPressed: () async {
-                          final changed = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
-                          if (changed == true) await _loadProfile();
-                        },
-                        child: const Text('Rediger profil'),
+                      child: CustomButtonContainer(
+                        child: ElevatedButton(
+                          style: customElevatedButtonStyle(),
+                          onPressed: () async {
+                            final changed = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+                            if (changed == true) await _loadProfile();
+                          },
+                          child: const Text('Rediger profil'),
+                        ),
                       ),
                     ),
                   ],
@@ -344,19 +338,23 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
           children: [
             SizedBox(
               width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                child: const Text('Log ind'),
+              child: CustomButtonContainer(
+                child: ElevatedButton(
+                  style: customElevatedButtonStyle(),
+                  onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                  child: const Text('Log ind'),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
-                child: const Text('Opret profil'),
+              child: CustomButtonContainer(
+                child: ElevatedButton(
+                  style: customElevatedButtonStyle(),
+                  onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
+                  child: const Text('Opret profil'),
+                ),
               ),
             ),
           ],
