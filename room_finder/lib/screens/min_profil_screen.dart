@@ -119,35 +119,39 @@ class _YourProfileScreenState extends State<YourProfileScreen>
   }
 
   Widget _loggedOut(BuildContext ctx) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                ),
-                child: const Text('Log ind'),
-              ),
+  child: Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      SizedBox(
+        width: 200,
+        child: CustomButtonContainer(
+          child: ElevatedButton(
+            style: customElevatedButtonStyle(),
+            onPressed: () => Navigator.push(
+              ctx,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
-                ),
-                child: const Text('Opret profil'),
-              ),
-            ),
-          ],
+            child: const Text('Log ind'),
+          ),
         ),
-      );
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        width: 200,
+        child: CustomButtonContainer(
+          child: ElevatedButton(
+            style: customElevatedButtonStyle(),
+            onPressed: () => Navigator.push(
+              ctx,
+              MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
+            ),
+            child: const Text('Opret profil'),
+          ),
+        ),
+      ),
+    ],
+  ),
+);
 
   Widget _buildField({
     required IconData icon,
