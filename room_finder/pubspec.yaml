@@ -1,5 +1,5 @@
 name: room_finder
-description: "A new Flutter project."
+description: "Room Finder"
 
 publish_to: 'none' 
 
@@ -26,6 +26,9 @@ dependencies:
   flutter_chat_types: ^3.5.1
   flutter_typeahead: ^5.1.0
   http: ^1.2.0
+  
+flutter:
+  uses-material-design: true
 
 dev_dependencies:
   flutter_test:
