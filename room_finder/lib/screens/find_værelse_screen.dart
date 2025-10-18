@@ -7,35 +7,6 @@ import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
 import '../components/custom_styles.dart';
 
-Row _ddRow<T>({
-  required String label,
-  required T? value,
-  String? hint,
-  bool allowNull = false,
-  String nullLabel = 'Alle',
-  required List<DropdownMenuItem<T>> items,
-  required ValueChanged<T?> onChanged,
-  IconData? phosphorIcon,
-}) {
-  final fullItems = allowNull ? [DropdownMenuItem<T>(value: null, child: Text(nullLabel))] + items : items;
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      SizedBox(width: 80, child: Text(label)),
-      Expanded(
-        child: DropdownButton<T>(
-          isExpanded: true,
-          value: value,
-          hint: hint != null ? Text(hint) : null,
-          items: fullItems,
-          onChanged: onChanged,
-          icon: Icon(phosphorIcon ?? PhosphorIcons.caretDown(), size: 18, color: Colors.grey[700]),
-        ),
-      ),
-    ],
-  );
-}
-
 class FindRoommatesScreen extends StatefulWidget {
   const FindRoommatesScreen({super.key});
   @override
@@ -72,6 +43,17 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
 
   Stream<QuerySnapshot<Map<String, dynamic>>>? _resultsStream;
 
+  bool _filtersOpen = true;
+
+  static const _labelColor = Color(0xFF374151);
+  static const _iconColor = Color(0xFF4B5563);
+  static const _fill = Color(0xFFF3F4F6);
+  static const _btnBg = Color(0xFF111827);
+  static const _trackActive = Colors.black87;
+  static const _trackInactive = Colors.black45;
+
+  static const double _controlH = 44;
+
   @override
   void initState() {
     super.initState();
@@ -95,9 +77,15 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     final priceNeeded = _appliedPrice.start > _priceMin || _appliedPrice.end < _priceMax;
     final sizeNeeded = _appliedSize.start > _sizeMin || _appliedSize.end < _sizeMax;
     final mateNeeded = _appliedMates.start > _matesMin || _appliedMates.end < _matesMax;
-    if (priceNeeded) q = q.where('price', isGreaterThanOrEqualTo: _appliedPrice.start, isLessThanOrEqualTo: _appliedPrice.end);
-    if (sizeNeeded) q = q.where('size', isGreaterThanOrEqualTo: _appliedSize.start, isLessThanOrEqualTo: _appliedSize.end);
-    if (mateNeeded) q = q.where('roommates', isGreaterThanOrEqualTo: _appliedMates.start.round(), isLessThanOrEqualTo: _appliedMates.end.round());
+    if (priceNeeded) {
+      q = q.where('price', isGreaterThanOrEqualTo: _appliedPrice.start, isLessThanOrEqualTo: _appliedPrice.end);
+    }
+    if (sizeNeeded) {
+      q = q.where('size', isGreaterThanOrEqualTo: _appliedSize.start, isLessThanOrEqualTo: _appliedSize.end);
+    }
+    if (mateNeeded) {
+      q = q.where('roommates', isGreaterThanOrEqualTo: _appliedMates.start.round(), isLessThanOrEqualTo: _appliedMates.end.round());
+    }
     switch (_appliedSort) {
       case 'Pris ↓':
         q = q.orderBy('price', descending: true);
@@ -142,131 +130,14 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
         title: const Text('Find Roommates'),
         actions: [
           IconButton(
-            icon: Icon(PhosphorIcons.gearSix()),
+            icon: Icon(PhosphorIcons.gearSix(), color: _iconColor),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
       body: Column(
         children: [
-          Card(
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                title: const Text('Filtre', style: TextStyle(fontWeight: FontWeight.normal)),
-                trailing: Icon(PhosphorIcons.slidersHorizontal(), color: Colors.grey[700], size: 22),
-                childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                children: [
-                  _ddRow<String>(
-                    label: 'Sortér',
-                    value: _sort,
-                    items: _sortChoices.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                    onChanged: (v) => setState(() => _sort = v ?? _sort),
-                    phosphorIcon: PhosphorIcons.sortAscending(),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(width: 80, child: Text('Lokation')),
-                      Expanded(
-                        child: Stack(
-                          alignment: Alignment.centerRight,
-                          children: [
-                            PostcodeFilterField(
-                              controller: _locCtl,
-                              onSelected: (s) => setState(() => _location = s),
-                            ),
-                            Icon(PhosphorIcons.caretDown(), size: 18, color: Colors.grey[700]),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _ddRow<String?>(
-                    label: 'Periode',
-                    value: _period,
-                    allowNull: true,
-                    items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                    onChanged: (v) => setState(() => _period = v),
-                    phosphorIcon: PhosphorIcons.calendar(),
-                  ),
-                  const SizedBox(height: 16),
-                  _ddRow<int?>(
-                    label: 'Oprettet',
-                    value: _maxAgeDays,
-                    allowNull: true,
-                    items: _ageChoices.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
-                    onChanged: (v) => setState(() => _maxAgeDays = v),
-                    phosphorIcon: PhosphorIcons.clock(),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSliderWithIcon(PhosphorIcons.currencyDollarSimple(), 'Pris', '${_price.start.toInt()} – ${_price.end.toInt()} kr.'),
-                  RangeSlider(
-                    min: _priceMin,
-                    max: _priceMax,
-                    divisions: 100,
-                    labels: RangeLabels('${_price.start.toInt()} kr.', '${_price.end.toInt()} kr.'),
-                    values: _price,
-                    onChanged: (v) => setState(() => _price = v),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSliderWithIcon(PhosphorIcons.ruler(), 'Størrelse', '${_size.start.toInt()} – ${_size.end.toInt()} m²'),
-                  RangeSlider(
-                    min: _sizeMin,
-                    max: _sizeMax,
-                    divisions: 40,
-                    labels: RangeLabels('${_size.start.toInt()} m²', '${_size.end.toInt()} m²'),
-                    values: _size,
-                    onChanged: (v) => setState(() => _size = v),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSliderWithIcon(PhosphorIcons.users(), 'Roommates', '${_mates.start.toInt()} – ${_mates.end.toInt()}'),
-                  RangeSlider(
-                    min: _matesMin.toDouble(),
-                    max: _matesMax.toDouble(),
-                    divisions: 10,
-                    labels: RangeLabels(_mates.start.round().toString(), _mates.end.round().toString()),
-                    values: _mates,
-                    onChanged: (v) => setState(() => _mates = v),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        icon: Icon(PhosphorIcons.arrowCounterClockwise()),
-                        label: const Text('Nulstil filtre'),
-                        onPressed: () => setState(() {
-                          _locCtl.clear();
-                          _location = null;
-                          _period = null;
-                          _maxAgeDays = null;
-                          _price = const RangeValues(_priceMin, _priceMax);
-                          _size = const RangeValues(_sizeMin, _sizeMax);
-                          _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
-                          _sort = 'Nyeste først';
-                        }),
-                      ),
-                      const Spacer(),
-                      SizedBox(
-                        width: 200,
-                        child: CustomButtonContainer(
-                          child: ElevatedButton(
-                            style: customElevatedButtonStyle(),
-                            onPressed: _applyFilters,
-                            child: const Text('Opdater'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildFilterCard(context),
           Expanded(
             child: _resultsStream == null
                 ? const Center(child: CircularProgressIndicator())
@@ -320,13 +191,220 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     );
   }
 
-  Widget _buildSliderWithIcon(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[700]),
-        const SizedBox(width: 6),
-        Text('$label: $value', style: const TextStyle(fontSize: 14)),
-      ],
+  Widget _buildFilterCard(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _filtersOpen = !_filtersOpen),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('Filtre', style: TextStyle(color: _labelColor))),
+                  Icon(PhosphorIcons.slidersHorizontal(), color: _iconColor, size: 20),
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: _filtersOpen ? .5 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(PhosphorIcons.caretDown(), color: _iconColor, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            crossFadeState: _filtersOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 150),
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  _rowLabel('Sortér', _sizedField(_ddForm<String>(
+                    context,
+                    value: _sort,
+                    items: _sortChoices.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    onChanged: (v) => setState(() => _sort = v ?? _sort),
+                  ))),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _label('Lokation'),
+                      Expanded(
+                        child: SizedBox(
+                          height: _controlH,
+                          child: Stack(
+                            alignment: Alignment.centerRight,
+                            children: [
+                              Container(
+                                height: _controlH,
+                                decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.only(left: 12, right: 36),
+                                child: Center(
+                                  child: PostcodeFilterField(
+                                    controller: _locCtl,
+                                    onSelected: (s) => setState(() {
+                                      _location = s;
+                                      _locCtl.text = s ?? '';
+                                    }),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _rowLabel('Periode', _sizedField(_ddForm<String?>(
+                    context,
+                    value: _period,
+                    hint: const Text('Alle'),
+                    items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                    onChanged: (v) => setState(() => _period = v),
+                  ))),
+                  const SizedBox(height: 12),
+                  _rowLabel('Oprettet', _sizedField(_ddForm<int?>(
+                    context,
+                    value: _maxAgeDays,
+                    hint: const Text('Alle'),
+                    items: _ageChoices.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                    onChanged: (v) => setState(() => _maxAgeDays = v),
+                  ))),
+                  const SizedBox(height: 12),
+                  _info('Pris', '${_price.start.toInt()}–${_price.end.toInt()} kr.'),
+                  _sliderTheme(context, RangeSlider(
+                    min: _priceMin,
+                    max: _priceMax,
+                    divisions: 100,
+                    values: _price,
+                    onChanged: (v) => setState(() => _price = v),
+                  )),
+                  const SizedBox(height: 8),
+                  _info('Størrelse', '${_size.start.toInt()}–${_size.end.toInt()} m²'),
+                  _sliderTheme(context, RangeSlider(
+                    min: _sizeMin,
+                    max: _sizeMax,
+                    divisions: 40,
+                    values: _size,
+                    onChanged: (v) => setState(() => _size = v),
+                  )),
+                  const SizedBox(height: 8),
+                  _info('Roommates', '${_mates.start.toInt()}–${_mates.end.toInt()}'),
+                  _sliderTheme(context, RangeSlider(
+                    min: _matesMin.toDouble(),
+                    max: _matesMax.toDouble(),
+                    divisions: 10,
+                    values: _mates,
+                    onChanged: (v) => setState(() => _mates = v),
+                  )),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      SizedBox(
+                        height: _controlH,
+                        child: TextButton(
+                          style: ButtonStyle(
+                            minimumSize: MaterialStateProperty.all(const Size(0, _controlH)),
+                            padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
+                            foregroundColor: MaterialStateProperty.all(_labelColor),
+                          ),
+                          onPressed: () => setState(() {
+                            _locCtl.clear();
+                            _location = null;
+                            _period = null;
+                            _maxAgeDays = null;
+                            _price = const RangeValues(_priceMin, _priceMax);
+                            _size = const RangeValues(_sizeMin, _sizeMax);
+                            _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
+                            _sort = 'Nyeste først';
+                          }),
+                          child: const Text('Nulstil filtre'),
+                        ),
+                      ),
+                      const Spacer(),
+                      SizedBox(
+                        width: 200,
+                        height: _controlH,
+                        child: CustomButtonContainer(
+                          child: ElevatedButton(
+                            style: customElevatedButtonStyle().copyWith(
+                              minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
+                              padding: MaterialStateProperty.all(EdgeInsets.zero),
+                              backgroundColor: MaterialStateProperty.all(_btnBg),
+                              foregroundColor: MaterialStateProperty.all(Colors.white),
+                              shape: MaterialStateProperty.all(
+                                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            onPressed: _applyFilters,
+                            child: const Text('Opdater'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ddForm<T>(
+    BuildContext context, {
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    T? value,
+    Widget? hint,
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      icon: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor),
+      decoration: const InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: _fill,
+        border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(12))),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(12))),
+        focusedBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(12))),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      hint: hint,
+    );
+  }
+
+  Widget _sizedField(Widget child) => SizedBox(height: _controlH, child: Center(child: child));
+  Widget _rowLabel(String l, Widget w) => Row(children: [_label(l), Expanded(child: w)]);
+  Widget _label(String l) => SizedBox(width: 80, child: Text(l, style: const TextStyle(color: _labelColor)));
+  Widget _info(String l, String v) => Row(children: [Icon(PhosphorIcons.info(), size: 16, color: _iconColor), const SizedBox(width: 6), Text('$l: $v', style: const TextStyle(color: _labelColor))]);
+
+  Widget _sliderTheme(BuildContext context, Widget child) {
+    final base = SliderTheme.of(context);
+    return SliderTheme(
+      data: base.copyWith(
+        trackHeight: 8,
+        activeTrackColor: _trackActive,
+        inactiveTrackColor: _trackInactive,
+        rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 11),
+        overlayShape: SliderComponentShape.noOverlay,
+        thumbColor: Colors.white,
+        valueIndicatorColor: Colors.grey,
+      ),
+      child: child,
     );
   }
 }
