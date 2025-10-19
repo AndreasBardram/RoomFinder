@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:intl/intl.dart';
 import '../components/custom_styles.dart';
 import '../utils/navigation.dart';
 
@@ -15,18 +16,17 @@ class CreateAccountScreen extends StatefulWidget {
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _birthDateController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   String? _role;
   bool _showForm = false;
+  DateTime? _birthDate;
 
   Future<void> _createAccount() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
-    final birthDate = _birthDateController.text.trim();
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -34,13 +34,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       _showMessage('Vælg profiltype.');
       return;
     }
-    if ([firstName, lastName, birthDate, phone, email, password].any((e) => e.isEmpty)) {
+    if ([firstName, lastName, phone, email, password].any((e) => e.isEmpty) || _birthDate == null) {
       _showMessage('Udfyld alle felter.');
       return;
     }
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
       final uid = cred.user!.uid;
+      final birthDateStr = DateFormat('yyyy-MM-dd').format(_birthDate!);
       await FirebaseChatCore.instance.createUserInFirestore(
         types.User(
           id: uid,
@@ -48,7 +49,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           lastName: lastName,
           metadata: {
             'phone': phone,
-            'birthDate': birthDate,
+            'birthDate': birthDateStr,
             'email': email,
             'role': _role,
           },
@@ -71,7 +72,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _birthDateController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -93,10 +93,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            width: 2,
-            color: selected ? Colors.black : Colors.grey.shade300,
-          ),
+          border: Border.all(width: 2, color: selected ? Colors.black : Colors.grey.shade300),
         ),
         child: Row(
           children: [
@@ -145,10 +142,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             child: ElevatedButton(
               style: customElevatedButtonStyle(),
               onPressed: _role == null ? null : () => setState(() => _showForm = true),
-              child: Text(
-                'Fortsæt',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
-              ),
+              child: Text('Fortsæt', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16)),
             ),
           ),
         ),
@@ -157,28 +151,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   Widget _form() {
-    final roleLabel = _role == 'seeker' ? 'Profiltype: Finder værelse' : 'Profiltype: Udlejer værelse';
     return Column(
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.black, width: 1.2),
-              ),
-              child: Text(roleLabel, style: Theme.of(context).textTheme.bodyMedium),
-            ),
-            const SizedBox(width: 12),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.black),
-              onPressed: () => setState(() => _showForm = false),
-              child: const Text('Skift'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -199,10 +173,23 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _birthDateController,
-          decoration: customInputDecoration(labelText: 'Fødselsdato (YYYY-MM-DD)'),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _birthDate ?? DateTime(2000, 1, 1),
+              firstDate: DateTime(1900, 1, 1),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) setState(() => _birthDate = picked);
+          },
+          child: InputDecorator(
+            decoration: customInputDecoration(labelText: 'Fødselsdato'),
+            child: Text(
+              _birthDate == null ? 'Vælg dato' : DateFormat('yyyy-MM-dd').format(_birthDate!),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         TextField(
@@ -225,6 +212,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           obscureText: true,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
         ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _role,
+          decoration: customInputDecoration(labelText: 'Profiltype'),
+          items: const [
+            DropdownMenuItem(value: 'seeker', child: Text('Finder værelse')),
+            DropdownMenuItem(value: 'landlord', child: Text('Udlejer værelse')),
+          ],
+          onChanged: (v) => setState(() => _role = v),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -232,10 +230,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             child: ElevatedButton(
               style: customElevatedButtonStyle(),
               onPressed: _createAccount,
-              child: Text(
-                'Opret profil',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16),
-              ),
+              child: Text('Opret profil', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16)),
             ),
           ),
         ),
