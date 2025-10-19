@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart' as intl;
 import 'firebase_options.dart';
-import 'utils/navigation.dart';
+import 'utils/auth_gate.dart';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
@@ -28,7 +28,7 @@ class RoomMatchApp extends StatelessWidget {
       title: 'RoomMatch',
       theme: _theme(),
       debugShowCheckedModeBanner: false,
-      home: const MainScreen(initialIndex: 0),
+      home: const AuthGate(),
     );
   }
 

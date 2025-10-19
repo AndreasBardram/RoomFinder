@@ -127,7 +127,6 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find Roommates'),
         actions: [
           IconButton(
             icon: Icon(PhosphorIcons.gearSix(), color: _iconColor),
