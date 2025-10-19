@@ -26,6 +26,7 @@ dependencies:
   flutter_chat_types: ^3.5.1
   flutter_typeahead: ^5.1.0
   http: ^1.2.0
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
@@ -43,4 +44,14 @@ flutter_launcher_icons:
   ios: true
   image_path: assets/logo.png
   adaptive_icon_background: "#5B63F2"
+
+flutter_native_splash:
+  color: "#656BFA"
+  image: assets/logo.png
+  color_dark: "#656BFA"
+  image_dark: assets/logo.png
+  android_12:
+    image: assets/logo.png
+    icon_background_color: "#656BFA"
+    icon_background_color_dark: "#656BFA"
 
