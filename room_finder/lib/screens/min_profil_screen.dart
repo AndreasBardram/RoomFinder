@@ -25,34 +25,15 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   final _phoneController     = TextEditingController();
   final _emailController     = TextEditingController();
 
-  final _linkControllers = <String, TextEditingController>{
-    'instagram': TextEditingController(),
-    'facebook':  TextEditingController(),
-    'whatsapp':  TextEditingController(),
-    'website':   TextEditingController(),
-  };
-
   final _firstNameFocus = FocusNode();
   final _lastNameFocus  = FocusNode();
   final _birthDateFocus = FocusNode();
   final _phoneFocus     = FocusNode();
-  final _linkFocus = <String, FocusNode>{
-    'instagram': FocusNode(),
-    'facebook':  FocusNode(),
-    'whatsapp':  FocusNode(),
-    'website':   FocusNode(),
-  };
 
   bool _editingFirstName = false;
   bool _editingLastName  = false;
   bool _editingBirthDate = false;
   bool _editingPhone     = false;
-  final _editingLink = <String, bool>{
-    'instagram': false,
-    'facebook':  false,
-    'whatsapp':  false,
-    'website':   false,
-  };
 
   String _firstName = '';
   String _lastName  = '';
@@ -79,9 +60,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     _lastNameFocus.addListener(_lastNameListener);
     _birthDateFocus.addListener(_birthDateListener);
     _phoneFocus.addListener(_phoneListener);
-    for (final k in _linkFocus.keys) {
-      _linkFocus[k]!.addListener(() => _linkListener(k));
-    }
   }
 
   @override
@@ -99,10 +77,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     _lastNameFocus.dispose();
     _birthDateFocus.dispose();
     _phoneFocus.dispose();
-    for (final k in _linkControllers.keys) {
-      _linkControllers[k]!.dispose();
-      _linkFocus[k]!.dispose();
-    }
     super.dispose();
   }
 
@@ -138,14 +112,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     setState(() => _editingPhone = f);
   }
 
-  void _linkListener(String p) {
-    final f = _linkFocus[p]!.hasFocus;
-    if (!f && _linkControllers[p]!.text.trim().isNotEmpty) {
-      _saveField('links.$p', _linkControllers[p]!.text);
-    }
-    setState(() => _editingLink[p] = f);
-  }
-
   void _showUpdated() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -179,8 +145,7 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (!snap.exists) return;
     final d = snap.data()!;
-    final meta  = (d['metadata'] as Map<String, dynamic>?) ?? {};
-    final links = (d['links']    as Map<String, dynamic>?) ?? {};
+    final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
     setState(() {
       _firstName  = d['firstName']  ?? '';
       _lastName   = d['lastName']   ?? '';
@@ -195,10 +160,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
       _birthDateController.text = _birthDate;
       _phoneController.text     = _phone;
       _emailController.text     = _email;
-
-      for (final k in _linkControllers.keys) {
-        _linkControllers[k]!.text = links[k]?.toString() ?? '';
-      }
     });
   }
 
@@ -253,15 +214,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     );
   }
 
-  Widget _linkRow(String p, IconData icon, String label) => _fieldRow(
-        icon: icon,
-        editing: _editingLink[p]!,
-        focusNode: _linkFocus[p]!,
-        controller: _linkControllers[p]!,
-        label: label,
-        keyboardType: TextInputType.url,
-      );
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -273,7 +225,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
       );
     }
     final uid = user.uid;
-
     final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
         '${_age != null ? ', $_age år' : ''}';
 
@@ -374,26 +325,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
-                  children: [
-                    _linkRow('instagram', FluentIcons.camera_24_regular, 'Instagram'),
-                    const Divider(height: 1),
-                    _linkRow('facebook',  FluentIcons.people_team_24_regular, 'Facebook'),
-                    const Divider(height: 1),
-                    _linkRow('whatsapp',  FluentIcons.chat_24_regular, 'WhatsApp'),
-                    const Divider(height: 1),
-                    _linkRow('website',   FluentIcons.globe_24_regular, 'Website'),
                   ],
                 ),
               ),

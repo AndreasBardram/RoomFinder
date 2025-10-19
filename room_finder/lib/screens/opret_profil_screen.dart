@@ -24,6 +24,20 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _showForm = false;
   DateTime? _birthDate;
 
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(2000, 1, 1),
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+      helpText: 'Vælg fødselsdato',
+      cancelText: 'Annuller',
+      confirmText: 'OK',
+    );
+    if (d != null) setState(() => _birthDate = d);
+  }
+
   Future<void> _createAccount() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
@@ -47,11 +61,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           id: uid,
           firstName: firstName,
           lastName: lastName,
+          role: types.Role.user,
           metadata: {
             'phone': phone,
             'birthDate': birthDateStr,
             'email': email,
-            'role': _role,
+            'profileType': _role,
           },
         ),
       );
@@ -174,15 +189,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         ),
         const SizedBox(height: 16),
         InkWell(
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _birthDate ?? DateTime(2000, 1, 1),
-              firstDate: DateTime(1900, 1, 1),
-              lastDate: DateTime.now(),
-            );
-            if (picked != null) setState(() => _birthDate = picked);
-          },
+          onTap: _pickBirthDate,
           child: InputDecorator(
             decoration: customInputDecoration(labelText: 'Fødselsdato'),
             child: Text(
