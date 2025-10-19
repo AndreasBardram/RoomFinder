@@ -162,12 +162,24 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     });
   }
 
+  InputDecoration _editDecoration(String label, String hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: const Color(0xFFF6F7FA),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+  }
+
   Widget _fieldRow({
     required IconData icon,
     required bool editing,
     required FocusNode focusNode,
     required TextEditingController controller,
     required String label,
+    String hint = '',
     TextInputType? keyboardType,
   }) {
     if (editing) {
@@ -179,12 +191,9 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
             child: TextField(
               focusNode: focusNode,
               controller: controller,
-              decoration: InputDecoration(
-                labelText: label,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
               keyboardType: keyboardType,
+              cursorColor: Colors.black,
+              decoration: _editDecoration(label, hint),
               onSubmitted: (_) => focusNode.unfocus(),
             ),
           ),
@@ -219,115 +228,163 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Din profil')),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          elevation: 0,
+          title: const Text('Din profil'),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+          ),
+        ),
         body: _loggedOut(context),
       );
     }
+
     final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
         '${_age != null ? ', $_age år' : ''}';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Din profil'),
-        actions: [
-          IconButton(
-            icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
-          ),
-        ],
+    final themed = Theme.of(context).copyWith(
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: Colors.black,
+        selectionHandleColor: Colors.black,
+        selectionColor: Color(0x33000000),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await _loadProfile();
-          setState(() {});
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Stack(
-                alignment: Alignment.bottomLeft,
-                children: [
-                  SizedBox(
-                    height: 220,
-                    width: double.infinity,
-                    child: _imageUrl.isNotEmpty
-                        ? Image.network(_imageUrl, fit: BoxFit.cover)
-                        : Container(
-                            color: Colors.grey[300],
-                            child: const Center(child: Icon(Icons.person, size: 60, color: Colors.white)),
-                          ),
-                  ),
-                  if (nameAge.trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        nameAge,
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                ],
-              ),
+    );
+
+    return Theme(
+      data: themed,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+          title: const Text('Din profil'),
+          actions: [
+            IconButton(
+              icon: const Icon(FluentIcons.settings_24_regular),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
-            const SizedBox(height: 24),
-            Card(
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
+          ],
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+          ),
+        ),
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await _loadProfile();
+            setState(() {});
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
                   children: [
-                    _fieldRow(
-                      icon: FluentIcons.person_24_regular,
-                      editing: _editingFirstName,
-                      focusNode: _firstNameFocus,
-                      controller: _firstNameController,
-                      label: 'Fornavn',
+                    SizedBox(
+                      height: 170,
+                      width: double.infinity,
+                      child: _imageUrl.isNotEmpty
+                          ? Image.network(_imageUrl, fit: BoxFit.cover)
+                          : Container(color: const Color(0xFFE5E7EB), child: const Center(child: Icon(Icons.person, size: 56, color: Colors.white))),
                     ),
-                    const Divider(height: 1),
-                    _fieldRow(
-                      icon: FluentIcons.person_24_regular,
-                      editing: _editingLastName,
-                      focusNode: _lastNameFocus,
-                      controller: _lastNameController,
-                      label: 'Efternavn',
-                    ),
-                    const Divider(height: 1),
-                    _fieldRow(
-                      icon: FluentIcons.calendar_24_regular,
-                      editing: _editingBirthDate,
-                      focusNode: _birthDateFocus,
-                      controller: _birthDateController,
-                      label: 'Fødselsdato (YYYY-MM-DD)',
-                      keyboardType: TextInputType.datetime,
-                    ),
-                    const Divider(height: 1),
-                    _fieldRow(
-                      icon: FluentIcons.phone_24_regular,
-                      editing: _editingPhone,
-                      focusNode: _phoneFocus,
-                      controller: _phoneController,
-                      label: 'Telefonnummer',
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        children: [
-                          const Icon(FluentIcons.mail_24_regular, size: 18),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
-                        ],
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          height: 56,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x00000000), Color(0x88000000)],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
+                    if (nameAge.trim().isNotEmpty)
+                      Positioned(
+                        left: 16,
+                        bottom: 12,
+                        child: Text(
+                          nameAge,
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
+                      ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Card(
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 3,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    children: [
+                      _fieldRow(
+                        icon: FluentIcons.person_24_regular,
+                        editing: _editingFirstName,
+                        focusNode: _firstNameFocus,
+                        controller: _firstNameController,
+                        label: 'Fornavn',
+                        hint: 'Anders',
+                      ),
+                      const Divider(height: 1),
+                      _fieldRow(
+                        icon: FluentIcons.person_24_regular,
+                        editing: _editingLastName,
+                        focusNode: _lastNameFocus,
+                        controller: _lastNameController,
+                        label: 'Efternavn',
+                        hint: 'Jensen',
+                      ),
+                      const Divider(height: 1),
+                      _fieldRow(
+                        icon: FluentIcons.calendar_24_regular,
+                        editing: _editingBirthDate,
+                        focusNode: _birthDateFocus,
+                        controller: _birthDateController,
+                        label: 'Fødselsdato',
+                        hint: '1998-05-15',
+                        keyboardType: TextInputType.datetime,
+                      ),
+                      const Divider(height: 1),
+                      _fieldRow(
+                        icon: FluentIcons.phone_24_regular,
+                        editing: _editingPhone,
+                        focusNode: _phoneFocus,
+                        controller: _phoneController,
+                        label: 'Telefonnummer',
+                        hint: '+45 12 34 56 78',
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(FluentIcons.mail_24_regular, size: 18),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
