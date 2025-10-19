@@ -42,6 +42,8 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   String _imageUrl  = '';
   int?   _age;
 
+  static const _hairline = Color(0xFFF1F5F9);
+
   int? _calcAge(String d) {
     final dt = DateTime.tryParse(d);
     if (dt == null) return null;
@@ -225,26 +227,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          elevation: 0,
-          title: const Text('Din profil'),
-          bottom: const PreferredSize(
-            preferredSize: Size.fromHeight(1),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
-          ),
-        ),
-        body: _loggedOut(context),
-      );
-    }
-
-    final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
-        '${_age != null ? ', $_age år' : ''}';
-
     final themed = Theme.of(context).copyWith(
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: Colors.black,
@@ -253,130 +235,157 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
       ),
     );
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return Theme(
+        data: themed,
+        child: Scaffold(
+          body: SafeArea(
+            child: Column(
+              children: [
+                Container(height: 1, color: _hairline),
+                Expanded(child: _loggedOut(context)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
+        '${_age != null ? ', $_age år' : ''}';
+
     return Theme(
       data: themed,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          centerTitle: false,
-          titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
-          title: const Text('Din profil'),
-          actions: [
-            IconButton(
-              icon: const Icon(FluentIcons.settings_24_regular),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
-            ),
-          ],
-          bottom: const PreferredSize(
-            preferredSize: Size.fromHeight(1),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
-          ),
-        ),
-        body: RefreshIndicator(
-          onRefresh: () async {
-            await _loadProfile();
-            setState(() {});
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
+        body: SafeArea(
+          child: Column(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      height: 170,
-                      width: double.infinity,
-                      child: _imageUrl.isNotEmpty
-                          ? Image.network(_imageUrl, fit: BoxFit.cover)
-                          : Container(color: const Color(0xFFE5E7EB), child: const Center(child: Icon(Icons.person, size: 56, color: Colors.white))),
-                    ),
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.bottomLeft,
-                        child: Container(
-                          height: 56,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Color(0x00000000), Color(0x88000000)],
+              Container(height: 1, color: _hairline),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    await _loadProfile();
+                    setState(() {});
+                  },
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
+                          children: [
+                            SizedBox(
+                              height: 170,
+                              width: double.infinity,
+                              child: _imageUrl.isNotEmpty
+                                  ? Image.network(_imageUrl, fit: BoxFit.cover)
+                                  : Container(color: const Color(0xFFE5E7EB), child: const Center(child: Icon(Icons.person, size: 56, color: Colors.white))),
                             ),
+                            Positioned.fill(
+                              child: Align(
+                                alignment: Alignment.bottomLeft,
+                                child: Container(
+                                  height: 56,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [Color(0x00000000), Color(0x88000000)],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (nameAge.trim().isNotEmpty)
+                              Positioned(
+                                left: 16,
+                                bottom: 12,
+                                child: Text(
+                                  nameAge,
+                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 3,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Column(
+                            children: [
+                              _fieldRow(
+                                icon: FluentIcons.person_24_regular,
+                                editing: _editingFirstName,
+                                focusNode: _firstNameFocus,
+                                controller: _firstNameController,
+                                label: 'Fornavn',
+                                hint: 'Anders',
+                              ),
+                              const Divider(height: 1, color: _hairline),
+                              _fieldRow(
+                                icon: FluentIcons.person_24_regular,
+                                editing: _editingLastName,
+                                focusNode: _lastNameFocus,
+                                controller: _lastNameController,
+                                label: 'Efternavn',
+                                hint: 'Jensen',
+                              ),
+                              const Divider(height: 1, color: _hairline),
+                              _fieldRow(
+                                icon: FluentIcons.calendar_24_regular,
+                                editing: _editingBirthDate,
+                                focusNode: _birthDateFocus,
+                                controller: _birthDateController,
+                                label: 'Fødselsdato',
+                                hint: '1998-05-15',
+                                keyboardType: TextInputType.datetime,
+                              ),
+                              const Divider(height: 1, color: _hairline),
+                              _fieldRow(
+                                icon: FluentIcons.phone_24_regular,
+                                editing: _editingPhone,
+                                focusNode: _phoneFocus,
+                                controller: _phoneController,
+                                label: 'Telefonnummer',
+                                hint: '+45 12 34 56 78',
+                                keyboardType: TextInputType.phone,
+                              ),
+                              const Divider(height: 1, color: _hairline),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Row(
+                                  children: [
+                                    const Icon(FluentIcons.mail_24_regular, size: 18),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                    if (nameAge.trim().isNotEmpty)
-                      Positioned(
-                        left: 16,
-                        bottom: 12,
-                        child: Text(
-                          nameAge,
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                margin: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 3,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    children: [
-                      _fieldRow(
-                        icon: FluentIcons.person_24_regular,
-                        editing: _editingFirstName,
-                        focusNode: _firstNameFocus,
-                        controller: _firstNameController,
-                        label: 'Fornavn',
-                        hint: 'Anders',
-                      ),
-                      const Divider(height: 1),
-                      _fieldRow(
-                        icon: FluentIcons.person_24_regular,
-                        editing: _editingLastName,
-                        focusNode: _lastNameFocus,
-                        controller: _lastNameController,
-                        label: 'Efternavn',
-                        hint: 'Jensen',
-                      ),
-                      const Divider(height: 1),
-                      _fieldRow(
-                        icon: FluentIcons.calendar_24_regular,
-                        editing: _editingBirthDate,
-                        focusNode: _birthDateFocus,
-                        controller: _birthDateController,
-                        label: 'Fødselsdato',
-                        hint: '1998-05-15',
-                        keyboardType: TextInputType.datetime,
-                      ),
-                      const Divider(height: 1),
-                      _fieldRow(
-                        icon: FluentIcons.phone_24_regular,
-                        editing: _editingPhone,
-                        focusNode: _phoneFocus,
-                        controller: _phoneController,
-                        label: 'Telefonnummer',
-                        hint: '+45 12 34 56 78',
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          children: [
-                            const Icon(FluentIcons.mail_24_regular, size: 18),
-                            const SizedBox(width: 12),
-                            Expanded(child: Text(_email, style: const TextStyle(fontSize: 16))),
-                          ],
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(FluentIcons.settings_24_regular),
+                          label: const Text('Indstillinger'),
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            minimumSize: const Size.fromHeight(56),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ),
                     ],
