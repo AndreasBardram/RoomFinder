@@ -34,6 +34,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   bool _isUploading = false;
   String? _errorMsg;
 
+  String? _profileType;
+  String _ownerFirstName = '';
+  String _ownerLastName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileType();
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -45,6 +55,19 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _roommatesController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProfileType() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final d = snap.data() ?? {};
+    final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
+    setState(() {
+      _profileType = (meta['profileType'] ?? '').toString();
+      _ownerFirstName = d['firstName'] ?? '';
+      _ownerLastName = d['lastName'] ?? '';
+    });
   }
 
   void _showError(String m, {Duration d = const Duration(seconds: 5)}) {
@@ -60,7 +83,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return false;
   }
 
-  bool _validate() {
+  bool _validateListing() {
     final title = _titleController.text.trim();
     final loc = _locationController.text.trim();
     final addr = _addressController.text.trim();
@@ -78,6 +101,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final perOk = per.toLowerCase() == 'ubegrænset' || (perNum != null && perNum >= 1 && perNum <= 100);
     if (!perOk) return _fail('Periode: "ubegrænset" eller 1-100 måneder.');
     if (mate == null || mate < 1 || mate > 10) return _fail('Roommates: 1-10.');
+    if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
+    setState(() => _errorMsg = null);
+    return true;
+  }
+
+  bool _validateApplication() {
+    final title = _titleController.text.trim();
+    final desc = _descriptionController.text.trim();
+    if (title.isEmpty || title.length > 100) return _fail('Titel skal udfyldes (max 100 tegn).');
     if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
     setState(() => _errorMsg = null);
     return true;
@@ -121,11 +153,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<String> _uploadImage({
-    required String listingId,
+    required String folder,
+    required String id,
     required int index,
     required XFile file,
   }) async {
-    final ref = FirebaseStorage.instance.ref('apartments/$listingId/$index.jpg');
+    final ref = FirebaseStorage.instance.ref('$folder/$id/$index.jpg');
     final snap = await ref.putFile(File(file.path), SettableMetadata(contentType: 'image/jpeg'));
     return await snap.ref.getDownloadURL();
   }
@@ -133,7 +166,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<void> _createApartment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    if (!_validate()) return;
+    if (!_validateListing()) return;
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
     final address = _addressController.text.trim();
@@ -144,12 +177,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
     try {
-      final ownerSnap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final owner = ownerSnap.data() ?? {};
       final docRef = await FirebaseFirestore.instance.collection('apartments').add({
         'ownedBy': user.uid,
-        'ownerFirstName': owner['firstName'] ?? '',
-        'ownerLastName': owner['lastName'] ?? '',
+        'ownerFirstName': _ownerFirstName,
+        'ownerLastName': _ownerLastName,
         'title': title,
         'location': location,
         'address': address,
@@ -162,25 +193,60 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       });
       if (_images.isNotEmpty) {
         final urls = await Future.wait(_images.asMap().entries.map(
-          (e) => _uploadImage(listingId: docRef.id, index: e.key, file: e.value),
+          (e) => _uploadImage(folder: 'apartments', id: docRef.id, index: e.key, file: e.value),
         ));
         await docRef.update({'imageUrls': urls});
       }
-      _titleController.clear();
-      _locationController.clear();
-      _addressController.clear();
-      _priceController.clear();
-      _sizeController.clear();
-      _periodController.clear();
-      _roommatesController.clear();
-      _descriptionController.clear();
-      setState(() => _images = []);
+      _clearForm();
       _showError('Opslag gemt!');
     } catch (e) {
       _showError('Fejl under upload: $e');
     } finally {
       setState(() => _isUploading = false);
     }
+  }
+
+  Future<void> _createApplication() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (!_validateApplication()) return;
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+    setState(() => _isUploading = true);
+    try {
+      final docRef = await FirebaseFirestore.instance.collection('applications').add({
+        'ownedBy': user.uid,
+        'ownerFirstName': _ownerFirstName,
+        'ownerLastName': _ownerLastName,
+        'title': title,
+        'description': description,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      if (_images.isNotEmpty) {
+        final urls = await Future.wait(_images.asMap().entries.map(
+          (e) => _uploadImage(folder: 'applications', id: docRef.id, index: e.key, file: e.value),
+        ));
+        await docRef.update({'imageUrls': urls});
+      }
+      _clearForm();
+      _showError('Ansøgning gemt!');
+    } catch (e) {
+      _showError('Fejl under upload: $e');
+    } finally {
+      setState(() => _isUploading = false);
+    }
+  }
+
+  void _clearForm() {
+    _titleController.clear();
+    _locationController.clear();
+    _addressController.clear();
+    _priceController.clear();
+    _sizeController.clear();
+    _periodController.clear();
+    _roommatesController.clear();
+    _descriptionController.clear();
+    setState(() => _images = []);
   }
 
   Widget _loggedOutBody(BuildContext context) {
@@ -214,12 +280,105 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  Widget _applicationForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _imagePickerButton(),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _titleController,
+          decoration: customInputDecoration(labelText: 'Titel'),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _descriptionController,
+          decoration: customInputDecoration(labelText: 'Beskrivelse'),
+          maxLines: 5,
+        ),
+        const SizedBox(height: 32),
+        SizedBox(
+          width: double.infinity,
+          child: CustomButtonContainer(
+            child: ElevatedButton(
+              style: customElevatedButtonStyle(),
+              onPressed: _isUploading ? null : _createApplication,
+              child: const Text('Upload ansøgning'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _listingForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _imagePickerButton(),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _titleController,
+          decoration: customInputDecoration(labelText: 'Titel'),
+        ),
+        const SizedBox(height: 16),
+        PostnrField(controller: _locationController),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _addressController,
+          decoration: customInputDecoration(labelText: 'Adresse'),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _priceController,
+          decoration: customInputDecoration(labelText: 'Pris (DKK)'),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _sizeController,
+          decoration: customInputDecoration(labelText: 'Størrelse (m²)'),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _periodController,
+          decoration: customInputDecoration(labelText: 'Periode (måneder / ubegrænset)'),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _roommatesController,
+          decoration: customInputDecoration(labelText: 'Antal roommates'),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _descriptionController,
+          decoration: customInputDecoration(labelText: 'Beskrivelse'),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 32),
+        SizedBox(
+          width: double.infinity,
+          child: CustomButtonContainer(
+            child: ElevatedButton(
+              style: customElevatedButtonStyle(),
+              onPressed: _isUploading ? null : _createApartment,
+              child: const Text('Upload værelse'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Opret værelse'),
+        title: Text(isSeeker ? 'Opret ansøgning' : 'Opret værelse'),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
@@ -231,67 +390,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           ? _loggedOutBody(context)
           : Stack(
               children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _imagePickerButton(),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _titleController,
-                        decoration: customInputDecoration(labelText: 'Titel'),
-                      ),
-                      const SizedBox(height: 16),
-                      PostnrField(controller: _locationController),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _addressController,
-                        decoration: customInputDecoration(labelText: 'Adresse'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _priceController,
-                        decoration: customInputDecoration(labelText: 'Pris (DKK)'),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _sizeController,
-                        decoration: customInputDecoration(labelText: 'Størrelse (m²)'),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _periodController,
-                        decoration: customInputDecoration(labelText: 'Periode (måneder / ubegrænset)'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _roommatesController,
-                        decoration: customInputDecoration(labelText: 'Antal roommates'),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _descriptionController,
-                        decoration: customInputDecoration(labelText: 'Beskrivelse'),
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: CustomButtonContainer(
-                          child: ElevatedButton(
-                            style: customElevatedButtonStyle(),
-                            onPressed: _isUploading ? null : _createApartment,
-                            child: const Text('Upload værelse'),
-                          ),
-                        ),
-                      ),
-                    ],
+                if (_profileType == null)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: isSeeker ? _applicationForm() : _listingForm(),
                   ),
-                ),
                 if (_isUploading)
                   Container(
                     color: Colors.black.withOpacity(0.15),
