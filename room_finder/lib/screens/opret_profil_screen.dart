@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:intl/intl.dart';
-import '../components/custom_styles.dart';
 import '../utils/navigation.dart';
 
 class CreateAccountScreen extends StatefulWidget {
@@ -16,6 +15,7 @@ class CreateAccountScreen extends StatefulWidget {
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -23,6 +23,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   String? _role;
   bool _showForm = false;
   DateTime? _birthDate;
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
@@ -35,7 +46,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       cancelText: 'Annuller',
       confirmText: 'OK',
     );
-    if (d != null) setState(() => _birthDate = d);
+    if (d != null) {
+      setState(() {
+        _birthDate = d;
+        _birthDateController.text = DateFormat('yyyy-MM-dd').format(d);
+      });
+    }
   }
 
   Future<void> _createAccount() async {
@@ -83,14 +99,35 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  InputDecoration _fieldDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFF8A93A6), fontSize: 14),
+      filled: true,
+      fillColor: const Color(0xFFF6F7FA),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+
+  ButtonStyle get _primaryBtn => ElevatedButton.styleFrom(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size.fromHeight(56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      );
+
+  Widget _labeled(String label, Widget field) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        field,
+      ],
+    );
   }
 
   Widget _optionTile({
@@ -106,25 +143,43 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(width: 2, color: selected ? Colors.black : Colors.grey.shade300),
+          border: Border.all(
+            width: selected ? 2 : 1.5,
+            color: selected ? Colors.black : const Color(0xFFE6E8EF),
+          ),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 28),
+            Icon(icon, size: 28, color: Colors.black),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700])),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8A93A6), fontSize: 13),
+                  ),
                 ],
               ),
             ),
-            if (selected) const Icon(Icons.check_circle, size: 24),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black, width: selected ? 2 : 1.5),
+                color: selected ? Colors.black : Colors.transparent,
+              ),
+              child: selected ? const Icon(Icons.check, size: 16, color: Colors.white) : const SizedBox.shrink(),
+            ),
           ],
         ),
       ),
@@ -135,12 +190,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hvordan vil du bruge RoomMatch?', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
+        Text('Hvordan vil du bruge RoomMatch?',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 16),
         _optionTile(
           value: 'seeker',
           title: 'Jeg leder efter et værelse',
-          subtitle: 'Match med udlejere og find dit nye hjem',
+          subtitle: 'Match med udlejere og find dit hjem',
           icon: Icons.search,
         ),
         const SizedBox(height: 12),
@@ -148,17 +204,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           value: 'landlord',
           title: 'Jeg vil udleje et værelse',
           subtitle: 'Opret opslag og find den rette lejer',
-          icon: Icons.home_work_outlined,
+          icon: Icons.home_outlined,
         ),
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          child: CustomButtonContainer(
-            child: ElevatedButton(
-              style: customElevatedButtonStyle(),
-              onPressed: _role == null ? null : () => setState(() => _showForm = true),
-              child: Text('Fortsæt', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16)),
-            ),
+          child: ElevatedButton(
+            style: _primaryBtn,
+            onPressed: _role == null ? null : () => setState(() => _showForm = true),
+            child: const Text('Fortsæt'),
           ),
         ),
       ],
@@ -167,78 +221,113 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   Widget _form() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _firstNameController,
-                decoration: customInputDecoration(labelText: 'Fornavn'),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+              child: _labeled(
+                'Fornavn',
+                TextField(
+                  controller: _firstNameController,
+                  cursorColor: Colors.black,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.givenName],
+                  decoration: _fieldDecoration('Anders'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: TextField(
-                controller: _lastNameController,
-                decoration: customInputDecoration(labelText: 'Efternavn'),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+              child: _labeled(
+                'Efternavn',
+                TextField(
+                  controller: _lastNameController,
+                  cursorColor: Colors.black,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.familyName],
+                  decoration: _fieldDecoration('Jensen'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        InkWell(
-          onTap: _pickBirthDate,
-          child: InputDecorator(
-            decoration: customInputDecoration(labelText: 'Fødselsdato'),
-            child: Text(
-              _birthDate == null ? 'Vælg dato' : DateFormat('yyyy-MM-dd').format(_birthDate!),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-            ),
+        _labeled(
+          'Fødselsdato',
+          TextField(
+            controller: _birthDateController,
+            readOnly: true,
+            cursorColor: Colors.black,
+            onTap: _pickBirthDate,
+            decoration: _fieldDecoration('Vælg dato').copyWith(suffixIcon: const Icon(Icons.calendar_today_outlined)),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14, color: Colors.black),
           ),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _phoneController,
-          decoration: customInputDecoration(labelText: 'Telefonnummer'),
-          keyboardType: TextInputType.phone,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        _labeled(
+          'Telefonnummer',
+          TextField(
+            controller: _phoneController,
+            cursorColor: Colors.black,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.telephoneNumber],
+            decoration: _fieldDecoration('+45 12 34 56 78'),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          ),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _emailController,
-          decoration: customInputDecoration(labelText: 'E-mail'),
-          keyboardType: TextInputType.emailAddress,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        _labeled(
+          'E-mail',
+          TextField(
+            controller: _emailController,
+            cursorColor: Colors.black,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
+            decoration: _fieldDecoration('din@email.dk'),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          ),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _passwordController,
-          decoration: customInputDecoration(labelText: 'Password'),
-          obscureText: true,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        _labeled(
+          'Password',
+          TextField(
+            controller: _passwordController,
+            cursorColor: Colors.black,
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _createAccount(),
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: _fieldDecoration('•••••••'),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          ),
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          value: _role,
-          decoration: customInputDecoration(labelText: 'Profiltype'),
-          items: const [
-            DropdownMenuItem(value: 'seeker', child: Text('Finder værelse')),
-            DropdownMenuItem(value: 'landlord', child: Text('Udlejer værelse')),
-          ],
-          onChanged: (v) => setState(() => _role = v),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+        _labeled(
+          'Profiltype',
+          DropdownButtonFormField<String>(
+            value: _role,
+            isExpanded: true,
+            decoration: _fieldDecoration('Finder værelse'),
+            items: const [
+              DropdownMenuItem(value: 'seeker', child: Text('Finder værelse')),
+              DropdownMenuItem(value: 'landlord', child: Text('Udlejer værelse')),
+            ],
+            onChanged: (v) => setState(() => _role = v),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          ),
         ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
-          child: CustomButtonContainer(
-            child: ElevatedButton(
-              style: customElevatedButtonStyle(),
-              onPressed: _createAccount,
-              child: Text('Opret profil', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 16)),
-            ),
+          child: ElevatedButton(
+            style: _primaryBtn,
+            onPressed: _createAccount,
+            child: const Text('Opret profil'),
           ),
         ),
       ],
@@ -248,9 +337,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).primaryColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).primaryColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
