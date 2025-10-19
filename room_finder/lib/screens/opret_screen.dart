@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
 import '../components/postcode_enter_field.dart';
+import '../components/apartment_card.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
@@ -286,16 +287,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       children: [
         _imagePickerButton(),
         const SizedBox(height: 24),
-        TextField(
-          controller: _titleController,
-          decoration: customInputDecoration(labelText: 'Titel'),
-        ),
+        TextField(controller: _titleController, decoration: customInputDecoration(labelText: 'Titel')),
         const SizedBox(height: 16),
-        TextField(
-          controller: _descriptionController,
-          decoration: customInputDecoration(labelText: 'Beskrivelse'),
-          maxLines: 5,
-        ),
+        TextField(controller: _descriptionController, decoration: customInputDecoration(labelText: 'Beskrivelse'), maxLines: 5),
         const SizedBox(height: 32),
         SizedBox(
           width: double.infinity,
@@ -317,46 +311,21 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       children: [
         _imagePickerButton(),
         const SizedBox(height: 24),
-        TextField(
-          controller: _titleController,
-          decoration: customInputDecoration(labelText: 'Titel'),
-        ),
+        TextField(controller: _titleController, decoration: customInputDecoration(labelText: 'Titel')),
         const SizedBox(height: 16),
         PostnrField(controller: _locationController),
         const SizedBox(height: 16),
-        TextField(
-          controller: _addressController,
-          decoration: customInputDecoration(labelText: 'Adresse'),
-        ),
+        TextField(controller: _addressController, decoration: customInputDecoration(labelText: 'Adresse')),
         const SizedBox(height: 16),
-        TextField(
-          controller: _priceController,
-          decoration: customInputDecoration(labelText: 'Pris (DKK)'),
-          keyboardType: TextInputType.number,
-        ),
+        TextField(controller: _priceController, decoration: customInputDecoration(labelText: 'Pris (DKK)'), keyboardType: TextInputType.number),
         const SizedBox(height: 16),
-        TextField(
-          controller: _sizeController,
-          decoration: customInputDecoration(labelText: 'Størrelse (m²)'),
-          keyboardType: TextInputType.number,
-        ),
+        TextField(controller: _sizeController, decoration: customInputDecoration(labelText: 'Størrelse (m²)'), keyboardType: TextInputType.number),
         const SizedBox(height: 16),
-        TextField(
-          controller: _periodController,
-          decoration: customInputDecoration(labelText: 'Periode (måneder / ubegrænset)'),
-        ),
+        TextField(controller: _periodController, decoration: customInputDecoration(labelText: 'Periode (måneder / ubegrænset)')),
         const SizedBox(height: 16),
-        TextField(
-          controller: _roommatesController,
-          decoration: customInputDecoration(labelText: 'Antal roommates'),
-          keyboardType: TextInputType.number,
-        ),
+        TextField(controller: _roommatesController, decoration: customInputDecoration(labelText: 'Antal roommates'), keyboardType: TextInputType.number),
         const SizedBox(height: 16),
-        TextField(
-          controller: _descriptionController,
-          decoration: customInputDecoration(labelText: 'Beskrivelse'),
-          maxLines: 3,
-        ),
+        TextField(controller: _descriptionController, decoration: customInputDecoration(labelText: 'Beskrivelse'), maxLines: 3),
         const SizedBox(height: 32),
         SizedBox(
           width: double.infinity,
@@ -372,9 +341,126 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  Widget _userPostsSection(String uid) {
+    final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
+    final collection = isSeeker ? 'applications' : 'apartments';
+    final title = isSeeker ? 'Dine ansøgninger' : 'Dine opslag';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 10),
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          key: ValueKey('${collection}_$uid'),
+          future: FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: uid).get(),
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snap.hasError) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Text('Fejl: ${snap.error}'),
+              );
+            }
+            final docs = snap.data?.docs ?? [];
+            docs.sort((a, b) {
+              final tA = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+              final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+              return tB.compareTo(tA);
+            });
+            if (docs.isEmpty) {
+              return Column(
+                children: [
+                  Icon(isSeeker ? FluentIcons.document_24_regular : FluentIcons.home_24_regular, size: 40, color: Colors.grey),
+                  const SizedBox(height: 8),
+                  Text(isSeeker ? 'Ingen ansøgninger.' : 'Ingen aktive opslag.', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                ],
+              );
+            }
+            return LayoutBuilder(
+              builder: (ctx, constraints) {
+                const count = 2;
+                const hPad = 8.0;
+                const spacing = 16.0;
+                final w = (constraints.maxWidth - hPad * 2 - spacing * (count - 1)) / count;
+                final h = isSeeker ? w + 88 : w + 124;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: count,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                    mainAxisExtent: h,
+                  ),
+                  itemCount: docs.length,
+                  itemBuilder: (_, i) {
+                    final d = docs[i].data();
+                    final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
+                    if (!isSeeker) {
+                      return ApartmentCard(
+                        images: images,
+                        title: d['title'] ?? '',
+                        location: d['location'] ?? 'Ukendt',
+                        price: d['price'] ?? 0,
+                        size: (d['size'] ?? 0).toDouble(),
+                        period: d['period'] ?? '',
+                        roommates: (d['roommates'] ?? 0) as int,
+                      );
+                    }
+                    final firstImage = images.isNotEmpty ? images.first : null;
+                    return Card(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: w * 0.6,
+                            width: double.infinity,
+                            child: firstImage != null
+                                ? Image.network(firstImage, fit: BoxFit.cover)
+                                : Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.person, color: Colors.white))),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              (d['description'] ?? '').toString(),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, color: Colors.black54),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
     final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
     return Scaffold(
       appBar: AppBar(
@@ -395,7 +481,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 else
                   SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: isSeeker ? _applicationForm() : _listingForm(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        isSeeker ? _applicationForm() : _listingForm(),
+                        if (uid != null) _userPostsSection(uid),
+                      ],
+                    ),
                   ),
                 if (_isUploading)
                   Container(

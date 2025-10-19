@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/custom_styles.dart';
-import '../components/apartment_card.dart';
 import '../components/custom_error_message.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
@@ -224,7 +223,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
         body: _loggedOut(context),
       );
     }
-    final uid = user.uid;
     final nameAge = '${_firstName.isNotEmpty || _lastName.isNotEmpty ? '$_firstName $_lastName' : ''}'
         '${_age != null ? ', $_age år' : ''}';
 
@@ -328,81 +326,6 @@ class _YourProfileScreenState extends State<YourProfileScreen> with AutomaticKee
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 10),
-            const Text('Dine opslag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              key: ValueKey(DateTime.now()),
-              future: FirebaseFirestore.instance
-                  .collection('apartments')
-                  .where('ownedBy', isEqualTo: uid)
-                  .get(),
-              builder: (_, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                if (snap.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Text('Fejl: ${snap.error}'),
-                  );
-                }
-                final docs = snap.data?.docs ?? [];
-                docs.sort((a, b) {
-                  final tA = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-                  final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-                  return tB.compareTo(tA);
-                });
-                if (docs.isEmpty) {
-                  return Column(
-                    children: const [
-                      Icon(FluentIcons.home_24_regular, size: 40, color: Colors.grey),
-                      SizedBox(height: 8),
-                      Text('Ingen aktive opslag.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    ],
-                  );
-                }
-                return LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    const count = 2;
-                    const hPad = 8.0;
-                    const spacing = 16.0;
-                    final w = (constraints.maxWidth - hPad * 2 - spacing * (count - 1)) / count;
-                    final h = w + 124;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: count,
-                        crossAxisSpacing: spacing,
-                        mainAxisSpacing: spacing,
-                        mainAxisExtent: h,
-                      ),
-                      itemCount: docs.length,
-                      itemBuilder: (_, i) {
-                        final d = docs[i].data();
-                        final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
-                        return ApartmentCard(
-                          images: images,
-                          title: d['title'] ?? '',
-                          location: d['location'] ?? 'Ukendt',
-                          price: d['price'] ?? 0,
-                          size: (d['size'] ?? 0).toDouble(),
-                          period: d['period'] ?? '',
-                          roommates: (d['roommates'] ?? 0) as int,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
             ),
           ],
         ),
