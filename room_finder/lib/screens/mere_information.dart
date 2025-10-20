@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,48 +16,59 @@ class MoreInformationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title       = data['title'] ?? 'Uden titel';
-    final location    = data['location'] ?? 'Ukendt';
-    final price       = (data['price'] ?? 0).toDouble();
-    final size        = (data['size'] ?? 0).toDouble();
-    final period      = data['period'] ?? '';
-    final roommates   = (data['roommates'] ?? 0) as int;
-    final description = data['description'] ?? '';
-    final images      = List<String>.from(data['imageUrls'] ?? []);
+    final title = (data['title'] ?? 'Uden titel').toString();
+    final location = (data['location'] ?? 'Ukendt').toString();
+    final price = (data['price'] ?? 0).toDouble();
+    final size = (data['size'] ?? 0).toDouble();
+    final period = (data['period'] ?? '').toString();
+    final roommates = (data['roommates'] ?? 0) as int;
+    final description = (data['description'] ?? '').toString();
+    final images = List<String>.from(data['imageUrls'] ?? []);
 
     DateTime? created;
-    if (data['createdAt'] != null) {
-      created = DateTime.fromMillisecondsSinceEpoch(
-        data['createdAt'].millisecondsSinceEpoch,
-        isUtc: true,
-      );
-    }
+    final ca = data['createdAt'];
+    if (ca is Timestamp) created = ca.toDate();
     final createdStr = created != null
-        ? DateFormat('d. MMMM y • HH:mm', 'da').format(created.toLocal())
+        ? DateFormat('d. MMMM y • HH:mm', 'da_DK').format(created.toLocal())
         : 'Ukendt tidspunkt';
 
+    final priceStr = NumberFormat.decimalPattern('da_DK').format(price.round());
+
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _imageCarousel(images),
-            const SizedBox(height: 20),
-            Text(location, style: GoogleFonts.roboto(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('DKK ${price.toStringAsFixed(0)}', style: GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Text(location, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            Text('DKK $priceStr', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
-            _infoRow('📏 ', '${size.toStringAsFixed(0)} m²'),
-            _infoRow('📆 ', period),
-            _infoRow('👥 ', roommates.toString()),
-            const SizedBox(height: 4),
-            Text('Oprettet: $createdStr', style: GoogleFonts.roboto(fontSize: 14, color: Colors.grey)),
-            const SizedBox(height: 20),
-            Text(description, style: GoogleFonts.roboto(fontSize: 16)),
-            const SizedBox(height: 30),
+            _iconRow(const Icon(FluentIcons.ruler_24_regular, size: 18, color: Colors.black87), '${size.toStringAsFixed(0)} m²'),
+            _iconRow(const Icon(FluentIcons.calendar_24_regular, size: 18, color: Colors.black87), period.isEmpty ? '—' : period),
+            _iconRow(const Icon(FluentIcons.people_24_regular, size: 18, color: Colors.black87), roommates.toString()),
+            const SizedBox(height: 8),
+            Text('Oprettet: $createdStr', style: const TextStyle(fontSize: 12, color: Color(0xFF9AA3B2))),
+            const SizedBox(height: 16),
+            if (description.isNotEmpty) Text(description, style: const TextStyle(fontSize: 15)),
+            const SizedBox(height: 24),
             _applyButton(context),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -100,33 +110,36 @@ class MoreInformationScreen extends StatelessWidget {
   }
 
   Widget _imageCarousel(List<String> images) => SizedBox(
-        height: 260,
+        height: 240,
         child: images.isEmpty
-            ? Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(child: Icon(Icons.photo, size: 60)))
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(color: const Color(0xFFE5E7EB), child: const Center(child: Icon(Icons.photo, size: 56, color: Colors.white))),
+              )
             : PageView.builder(
                 itemCount: images.length,
+                controller: PageController(viewportFraction: 1),
                 itemBuilder: (_, i) => ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: CachedNetworkImage(
                     imageUrl: images[i],
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: Colors.grey[200]),
-                    errorWidget: (_, __, ___) => Container(color: Colors.grey[200]),
+                    placeholder: (_, __) => Container(color: const Color(0xFFE5E7EB)),
+                    errorWidget: (_, __, ___) => Container(color: const Color(0xFFE5E7EB)),
                   ),
                 ),
               ),
       );
 
-  Widget _infoRow(String icon, String text) => Row(
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 16)),
-          Text(text, style: GoogleFonts.roboto(fontSize: 16)),
-        ],
+  Widget _iconRow(Widget icon, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            icon,
+            const SizedBox(width: 8),
+            Flexible(child: Text(text, style: const TextStyle(fontSize: 15))),
+          ],
+        ),
       );
 
   Widget _applyButton(BuildContext context) => SizedBox(
@@ -135,9 +148,10 @@ class MoreInformationScreen extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            textStyle: const TextStyle(fontSize: 16),
+            elevation: 0,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           onPressed: () => _startChat(context),
           child: const Text('Send ansøgning'),
