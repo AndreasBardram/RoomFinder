@@ -1,15 +1,15 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
 
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
 import '../components/postcode_enter_field.dart';
-import '../components/apartment_card.dart';
 import 'settings_screen.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
@@ -117,12 +117,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<void> _pickImages() async {
-    final imgs = await _picker.pickMultiImage(imageQuality: 85);
-    if (imgs.length > 10) {
-      _showError('Max 10 photos.');
-      return;
-    }
-    setState(() => _images = imgs);
+    final imgs = await _picker.pickMultiImage();
+    _images = imgs.take(3).toList();
+    debugPrint('[pick] selected=${_images.length}');
+    setState(() {});
   }
 
   Widget _imagePickerButton() {
@@ -145,7 +143,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   children: const [
                     Icon(Icons.image, size: 32, color: Colors.grey),
                     SizedBox(height: 8),
-                    Text('Tryk for at tilføje op til 10 billeder (valgfrit)'),
+                    Text('Tryk for at tilføje op til 3 billeder (valgfrit)'),
                   ],
                 ),
         ),
@@ -153,15 +151,118 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  Future<String> _uploadImage({
-    required String folder,
-    required String id,
-    required int index,
-    required XFile file,
+  Future<Uint8List> _jpeg1080(XFile f) async {
+    final src = await f.readAsBytes();
+    debugPrint('[_jpeg1080] platform=${kIsWeb ? 'web' : 'native'} srcBytes=${src.length}');
+    final decoded = img.decodeImage(src);
+    if (decoded == null) throw Exception('Kunne ikke læse billedet');
+    int tw = decoded.width, th = decoded.height;
+    if (decoded.width >= decoded.height) {
+      if (decoded.width > 1080) {
+        tw = 1080;
+        th = (decoded.height * 1080 / decoded.width).round();
+      }
+    } else {
+      if (decoded.height > 1080) {
+        th = 1080;
+        tw = (decoded.width * 1080 / decoded.height).round();
+      }
+    }
+    final resized = (tw != decoded.width || th != decoded.height)
+        ? img.copyResize(decoded, width: tw, height: th, interpolation: img.Interpolation.cubic)
+        : decoded;
+    final jpg = img.encodeJpg(resized, quality: 80);
+    debugPrint('[_jpeg1080] out ${resized.width}x${resized.height} bytes=${jpg.length}');
+    return Uint8List.fromList(jpg);
+  }
+
+  Uint8List _unwrapImageField(dynamic v) {
+  if (v is Uint8List) return v;
+  if (v is Blob) return v.bytes;
+  if (v is List<int>) return Uint8List.fromList(v);
+  if (v is List<dynamic>) return Uint8List.fromList(v.cast<int>());
+  throw Exception('Ukendt billedtype: ${v.runtimeType}');
+  }
+
+  Future<void> _saveImagesToCollection({
+    required String parentCollection,
+    required String parentId,
+    required List<XFile> files,
   }) async {
-    final ref = FirebaseStorage.instance.ref('$folder/$id/$index.jpg');
-    final snap = await ref.putFile(File(file.path), SettableMetadata(contentType: 'image/jpeg'));
-    return await snap.ref.getDownloadURL();
+    final imagesCol = FirebaseFirestore.instance.collection('images');
+    for (var i = 0; i < files.length && i < 3; i++) {
+      final bytes = await _jpeg1080(files[i]);
+      debugPrint('[save] parent=$parentCollection/$parentId idx=$i bytes=${bytes.lengthInBytes}');
+      if (bytes.lengthInBytes > 950 * 1024) {
+        throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
+      }
+      final imageDocId = '${parentCollection}_${parentId}_$i';
+      debugPrint('[save] writing images/$imageDocId');
+      await imagesCol.doc(imageDocId).set({
+        'parentCollection': parentCollection,
+        'parentId': parentId,
+        'index': i,
+        'bytes': bytes,
+        'mime': 'image/jpeg',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('[save] ok images/$imageDocId');
+    }
+    debugPrint('[save] all done for $parentCollection/$parentId');
+  }
+
+  Future<Uint8List?> _fetchFirstImage(String parentCollection, String parentId) async {
+    debugPrint('[fetchFirst] $parentCollection/$parentId');
+    try {
+      final q = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .orderBy('index')
+          .limit(1)
+          .get();
+      debugPrint('[fetchFirst] docs=${q.docs.length}');
+      if (q.docs.isEmpty) return null;
+      return _unwrapImageField(q.docs.first.data()['bytes']);
+    } catch (e) {
+      debugPrint('[fetchFirst][err] $e');
+      final q2 = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .limit(3)
+          .get();
+      debugPrint('[fetchFirst][fallback] docs=${q2.docs.length}');
+      if (q2.docs.isEmpty) return null;
+      q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
+      return _unwrapImageField(q2.docs.first.data()['bytes']);
+    }
+  }
+
+  Future<List<Uint8List>> _fetchAllImages(String parentCollection, String parentId) async {
+    debugPrint('[fetchAll] $parentCollection/$parentId');
+    try {
+      final q = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .orderBy('index')
+          .limit(3)
+          .get();
+      debugPrint('[fetchAll] docs=${q.docs.length}');
+      return q.docs.map((d) => _unwrapImageField(d.data()['bytes'])).toList();
+    } catch (e) {
+      debugPrint('[fetchAll][err] $e');
+      final q2 = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .limit(3)
+          .get();
+      debugPrint('[fetchAll][fallback] docs=${q2.docs.length}');
+      q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
+      return q2.docs.map((d) => _unwrapImageField(d.data()['bytes'])).toList();
+    }
   }
 
   Future<void> _createApartment() async {
@@ -178,6 +279,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
     try {
+      debugPrint('[createApartment] start');
       final docRef = await FirebaseFirestore.instance.collection('apartments').add({
         'ownedBy': user.uid,
         'ownerFirstName': _ownerFirstName,
@@ -192,15 +294,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'description': description,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      debugPrint('[createApartment] docId=${docRef.id}');
       if (_images.isNotEmpty) {
-        final urls = await Future.wait(_images.asMap().entries.map(
-          (e) => _uploadImage(folder: 'apartments', id: docRef.id, index: e.key, file: e.value),
-        ));
-        await docRef.update({'imageUrls': urls});
+        await _saveImagesToCollection(parentCollection: 'apartments', parentId: docRef.id, files: _images);
       }
       _clearForm();
       _showError('Opslag gemt!');
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[createApartment][err] $e\n$st');
       _showError('Fejl under upload: $e');
     } finally {
       setState(() => _isUploading = false);
@@ -215,6 +316,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
     try {
+      debugPrint('[createApplication] start');
       final docRef = await FirebaseFirestore.instance.collection('applications').add({
         'ownedBy': user.uid,
         'ownerFirstName': _ownerFirstName,
@@ -223,15 +325,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'description': description,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      debugPrint('[createApplication] docId=${docRef.id}');
       if (_images.isNotEmpty) {
-        final urls = await Future.wait(_images.asMap().entries.map(
-          (e) => _uploadImage(folder: 'applications', id: docRef.id, index: e.key, file: e.value),
-        ));
-        await docRef.update({'imageUrls': urls});
+        await _saveImagesToCollection(parentCollection: 'applications', parentId: docRef.id, files: _images);
       }
       _clearForm();
       _showError('Ansøgning gemt!');
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[createApplication][err] $e\n$st');
       _showError('Fejl under upload: $e');
     } finally {
       setState(() => _isUploading = false);
@@ -247,7 +348,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _periodController.clear();
     _roommatesController.clear();
     _descriptionController.clear();
-    setState(() => _images = []);
+    _images = [];
+    debugPrint('[clearForm] cleared');
+    setState(() {});
   }
 
   Widget _loggedOutBody(BuildContext context) {
@@ -341,6 +444,22 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  Widget _cover(String parentCollection, String parentId, double height) {
+    return FutureBuilder<Uint8List?>(
+      future: _fetchFirstImage(parentCollection, parentId),
+      builder: (_, s) {
+        if (s.hasError) debugPrint('[cover][err] ${s.error}');
+        if (s.connectionState == ConnectionState.waiting) {
+          return Container(height: height, color: Colors.grey[300], child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        if (s.data == null) {
+          return Container(height: height, color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
+        }
+        return Image.memory(s.data!, height: height, width: double.infinity, fit: BoxFit.cover);
+      },
+    );
+  }
+
   Widget _userPostsSection(String uid) {
     final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
     final collection = isSeeker ? 'applications' : 'apartments';
@@ -404,19 +523,46 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   itemCount: docs.length,
                   itemBuilder: (_, i) {
                     final d = docs[i].data();
-                    final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
+                    final parentId = docs[i].id;
                     if (!isSeeker) {
-                      return ApartmentCard(
-                        images: images,
-                        title: d['title'] ?? '',
-                        location: d['location'] ?? 'Ukendt',
-                        price: d['price'] ?? 0,
-                        size: (d['size'] ?? 0).toDouble(),
-                        period: d['period'] ?? '',
-                        roommates: (d['roommates'] ?? 0) as int,
+                      return Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _cover('apartments', parentId, w * 0.6),
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                                  Text('${(d['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(d['period'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                                  Text('${(d['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Roommates: ${(d['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                            ),
+                          ],
+                        ),
                       );
                     }
-                    final firstImage = images.isNotEmpty ? images.first : null;
                     return Card(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 2,
@@ -424,13 +570,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SizedBox(
-                            height: w * 0.6,
-                            width: double.infinity,
-                            child: firstImage != null
-                                ? Image.network(firstImage, fit: BoxFit.cover)
-                                : Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.person, color: Colors.white))),
-                          ),
+                          _cover('applications', parentId, w * 0.6),
                           Padding(
                             padding: const EdgeInsets.all(8),
                             child: Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),

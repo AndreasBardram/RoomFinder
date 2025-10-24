@@ -27,6 +27,8 @@ dependencies:
   flutter_typeahead: ^5.1.0
   http: ^1.2.0
   flutter_native_splash: ^2.4.1
+  flutter_image_compress: ^2.4.0
+  image: ^4.5.4
 
 flutter:
   uses-material-design: true
