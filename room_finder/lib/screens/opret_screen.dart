@@ -22,6 +22,8 @@ class CreateListingScreen extends StatefulWidget {
 }
 
 class _CreateListingScreenState extends State<CreateListingScreen> {
+  static const int _maxImages = 6;
+
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _addressController = TextEditingController();
@@ -30,6 +32,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _periodController = TextEditingController();
   final _roommatesController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _socialController = TextEditingController();
+
+  final _appAreaController = TextEditingController();
+  final _budgetController = TextEditingController();
+  final _peopleController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
   final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://roomfinder-cec5a.firebasestorage.app');
@@ -63,6 +70,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _periodController.dispose();
     _roommatesController.dispose();
     _descriptionController.dispose();
+    _socialController.dispose();
+    _appAreaController.dispose();
+    _budgetController.dispose();
+    _peopleController.dispose();
     super.dispose();
   }
 
@@ -118,19 +129,23 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   bool _validateApplication() {
     final title = _titleController.text.trim();
     final desc = _descriptionController.text.trim();
+    final area = _appAreaController.text.trim();
+    final budget = double.tryParse(_budgetController.text.trim());
+    final people = int.tryParse(_peopleController.text.trim());
     if (title.isEmpty || title.length > 100) return _fail('Titel skal udfyldes (max 100 tegn).');
     if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
+    if (area.isEmpty) return _fail('Vælg område (postnummer).');
+    if (budget == null || budget < 0 || budget > 100000) return _fail('Budget: 0-100 000 DKK.');
+    if (people == null || people < 1 || people > 10) return _fail('Antal personer: 1-10.');
     setState(() => _errorMsg = null);
     return true;
   }
 
   Future<void> _pickImages() async {
     final imgs = await _picker.pickMultiImage();
-    _images = imgs.take(3).toList();
+    _images = imgs.take(_maxImages).toList();
     setState(() {});
   }
-
-  // ---------- UI helpers ----------
 
   Widget _label(String t) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
@@ -187,8 +202,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const Icon(FluentIcons.arrow_upload_24_regular, size: 28, color: _icon),
                 const SizedBox(height: 8),
                 Text(
-                  has ? '${_images.length} billede(r) valgt – tryk for at ændre'
-                      : 'Tryk for at tilføje op til 3 billeder (valgfrit)',
+                  has ? '${_images.length} billede(r) valgt – tryk for at ændre' : 'Tryk for at tilføje op til $_maxImages billeder (valgfrit)',
                   style: const TextStyle(color: Colors.black87),
                   textAlign: TextAlign.center,
                 ),
@@ -199,8 +213,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       ),
     );
   }
-
-  // ---------- Storage / Firestore helpers ----------
 
   Future<Uint8List> _jpeg1080(XFile f) async {
     final src = await f.readAsBytes();
@@ -231,7 +243,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     required List<XFile> files,
   }) async {
     final col = FirebaseFirestore.instance.collection('images');
-    for (var i = 0; i < files.length && i < 3; i++) {
+    for (var i = 0; i < files.length && i < _maxImages; i++) {
       final bytes = await _jpeg1080(files[i]);
       if (bytes.lengthInBytes > 950 * 1024) throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
       final path = 'images/$parentCollection/$parentId/$i.jpg';
@@ -280,7 +292,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .collection('images')
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
-          .limit(3)
+          .limit(_maxImages)
           .get();
       if (q2.docs.isEmpty) return null;
       q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
@@ -295,7 +307,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
           .orderBy('index')
-          .limit(3)
+          .limit(_maxImages)
           .get();
       return q.docs.map((d) => (d.data()['url'] as String)).toList();
     } catch (_) {
@@ -303,7 +315,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .collection('images')
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
-          .limit(3)
+          .limit(_maxImages)
           .get();
       q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
       return q2.docs.map((d) => (d.data()['url'] as String)).toList();
@@ -377,6 +389,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final period = _periodController.text.trim();
     final roommates = int.parse(_roommatesController.text.trim());
     final description = _descriptionController.text.trim();
+    final social = _socialController.text.trim();
     setState(() => _isUploading = true);
     try {
       final docRef = await FirebaseFirestore.instance.collection('apartments').add({
@@ -391,6 +404,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'period': period,
         'roommates': roommates,
         'description': description,
+        'social': social,
         'createdAt': FieldValue.serverTimestamp(),
       });
       if (_images.isNotEmpty) {
@@ -415,6 +429,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
+    final area = _appAreaController.text.trim();
+    final budget = double.parse(_budgetController.text.trim());
+    final people = int.parse(_peopleController.text.trim());
+    final social = _socialController.text.trim();
     setState(() => _isUploading = true);
     try {
       final docRef = await FirebaseFirestore.instance.collection('applications').add({
@@ -423,6 +441,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'ownerLastName': _ownerLastName,
         'title': title,
         'description': description,
+        'area': area,
+        'budget': budget,
+        'people': people,
+        'social': social,
         'createdAt': FieldValue.serverTimestamp(),
       });
       if (_images.isNotEmpty) {
@@ -446,11 +468,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _periodController.clear();
     _roommatesController.clear();
     _descriptionController.clear();
+    _socialController.clear();
+    _appAreaController.clear();
+    _budgetController.clear();
+    _peopleController.clear();
     _images = [];
     setState(() {});
   }
-
-  // ---------- Forms ----------
 
   Widget _loggedOutBody(BuildContext context) {
     return Center(
@@ -491,7 +515,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         const SizedBox(height: 24),
         _labeledTF('Titel', _titleController, 'Skriv en titel'),
         const SizedBox(height: 16),
+        _label('Område (postnummer)'),
+        PostnrField(controller: _appAreaController),
+        const SizedBox(height: 16),
+        _labeledTF('Budget (DKK)', _budgetController, 'fx 6000', type: TextInputType.number),
+        const SizedBox(height: 16),
+        _labeledTF('Antal personer', _peopleController, 'fx 2', type: TextInputType.number),
+        const SizedBox(height: 16),
         _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 5),
+        const SizedBox(height: 16),
+        _labeledTF('Link til sociale medier (valgfrit)', _socialController, 'https://...'),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -522,26 +555,21 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         _labeledTF('Titel', _titleController, 'Skriv en titel'),
         const SizedBox(height: 16),
         _label('Postnummer'),
-        // Keeps PostnrField’s logic; picks up our InputDecorationTheme for matching look
         PostnrField(controller: _locationController),
         const SizedBox(height: 16),
         _labeledTF('Adresse', _addressController, 'fx Nørrebrogade 1'),
         const SizedBox(height: 16),
-        _labeledTF('Pris (DKK)', _priceController, 'fx 6000',
-            type: TextInputType.number,
-            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
+        _labeledTF('Pris (DKK)', _priceController, 'fx 6000', type: TextInputType.number),
         const SizedBox(height: 16),
-        _labeledTF('Størrelse (m²)', _sizeController, 'fx 18',
-            type: TextInputType.number,
-            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
+        _labeledTF('Størrelse (m²)', _sizeController, 'fx 18', type: TextInputType.number),
         const SizedBox(height: 16),
         _labeledTF('Periode (måneder / ubegrænset)', _periodController, 'fx ubegrænset eller 6 måneder'),
         const SizedBox(height: 16),
-        _labeledTF('Antal roommates', _roommatesController, 'fx 2',
-            type: TextInputType.number,
-            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
+        _labeledTF('Antal roommates', _roommatesController, 'fx 2', type: TextInputType.number),
         const SizedBox(height: 16),
         _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 4),
+        const SizedBox(height: 16),
+        _labeledTF('Link til sociale medier (valgfrit)', _socialController, 'https://...'),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -643,6 +671,32 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  Widget _emptyItemCard(double imageHeight, bool isSeeker) {
+    final title = isSeeker ? 'Ingen ansøgninger.' : 'Ingen aktive opslag.';
+    final icon = isSeeker ? FluentIcons.document_24_regular : FluentIcons.home_24_regular;
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(height: imageHeight, color: Colors.grey[300], child: const SizedBox.shrink()),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(child: Text(title, style: const TextStyle(fontSize: 16, color: Colors.grey))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _userPostsSection(String uid) {
     final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
     final collection = isSeeker ? 'applications' : 'apartments';
@@ -677,19 +731,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               final tB = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
               return tB.compareTo(tA);
             });
-            if (docs.isEmpty) {
-              return Column(
-                children: [
-                  Icon(isSeeker ? FluentIcons.document_24_regular : FluentIcons.home_24_regular, size: 40, color: Colors.grey),
-                  const SizedBox(height: 8),
-                  Text(isSeeker ? 'Ingen ansøgninger.' : 'Ingen aktive opslag.', style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                ],
-              );
-            }
             return LayoutBuilder(
               builder: (ctx, constraints) {
                 final w = constraints.maxWidth;
                 final imageH = w * 0.6;
+                if (docs.isEmpty) {
+                  return Column(
+                    children: [
+                      _emptyItemCard(imageH, isSeeker),
+                    ],
+                  );
+                }
                 return ListView.separated(
                   itemCount: docs.length,
                   shrinkWrap: true,
@@ -793,7 +845,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 }
 
-// ---- gallery widget (unchanged behavior) ----
 class _ImagesPager extends StatefulWidget {
   final Future<List<String>> future;
   final double height;
@@ -842,17 +893,20 @@ class _ImagesPagerState extends State<_ImagesPager> {
     if (_imgs!.isEmpty) {
       return Container(height: widget.height, color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
     }
+    final leftEnabled = _i > 0;
+    final rightEnabled = _i < _imgs!.length - 1;
     return SizedBox(
       height: widget.height,
       child: Stack(
         children: [
           PageView.builder(
             controller: _controller,
+            physics: _imgs!.length > 1 ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
             onPageChanged: (v) => setState(() => _i = v),
             itemCount: _imgs!.length,
             itemBuilder: (_, idx) => Image.network(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover),
           ),
-          if (_imgs!.length > 1)
+          if (leftEnabled)
             Align(
               alignment: Alignment.centerLeft,
               child: Padding(
@@ -862,12 +916,12 @@ class _ImagesPagerState extends State<_ImagesPager> {
                   shape: const CircleBorder(),
                   child: IconButton(
                     icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    onPressed: _i == 0 ? null : () => _go(-1),
+                    onPressed: () => _go(-1),
                   ),
                 ),
               ),
             ),
-          if (_imgs!.length > 1)
+          if (rightEnabled)
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -877,7 +931,7 @@ class _ImagesPagerState extends State<_ImagesPager> {
                   shape: const CircleBorder(),
                   child: IconButton(
                     icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    onPressed: _i == _imgs!.length - 1 ? null : () => _go(1),
+                    onPressed: () => _go(1),
                   ),
                 ),
               ),
@@ -888,7 +942,6 @@ class _ImagesPagerState extends State<_ImagesPager> {
   }
 }
 
-// ---- dashed rounded border painter for the upload box ----
 class _DashedRRectPainter extends CustomPainter {
   final Color color;
   final double radius;
