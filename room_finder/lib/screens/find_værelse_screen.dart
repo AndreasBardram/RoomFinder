@@ -17,6 +17,7 @@ class FindRoommatesScreen extends StatefulWidget {
 
 class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   final _locCtl = TextEditingController();
+  final _scroll = ScrollController();
 
   String _sort = 'Nyeste først';
   String? _location;
@@ -43,9 +44,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   RangeValues _appliedSize = const RangeValues(_sizeMin, _sizeMax);
   RangeValues _appliedMates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>? _resultsStream;
-
-  bool _filtersOpen = true;
+  bool _filtersOpen = false;
   String? _profileType;
 
   static const _labelColor = Color(0xFF374151);
@@ -56,88 +55,138 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   static const _trackInactive = Color(0xFFB0B6BF);
   static const double _controlH = 44;
 
-  // Slightly larger typography for iPhones
   static const TextStyle _subMuted = TextStyle(fontSize: 14, color: Colors.black54);
   static const TextStyle _subStrong = TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w600);
   static const TextStyle _titleStrong = TextStyle(fontSize: 18, fontWeight: FontWeight.w700);
 
+  static const int _pageSize = 10;
+  static const int _maxFetchRounds = 6;
+  bool _initialLoading = true;
+  bool _pageLoading = false;
+  bool _hasMore = true;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs = [];
+  QueryDocumentSnapshot<Map<String, dynamic>>? _lastDoc;
+
   @override
   void initState() {
     super.initState();
-    _resultsStream = _buildAppliedQuery().snapshots();
     _loadProfileType();
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_pageLoading || !_hasMore) return;
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 300) {
+      _fetchNext();
+    }
   }
 
   Future<void> _loadProfileType() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    final d = snap.data() ?? {};
-    final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
-    setState(() {
+    if (user != null) {
+      final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final d = snap.data() ?? {};
+      final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
       _profileType = (meta['profileType'] ?? '').toString();
-      _resultsStream = _buildAppliedQuery().snapshots();
-    });
+    }
+    await _reload();
   }
 
   @override
   void dispose() {
     _locCtl.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
   bool get _isSeeker => (_profileType ?? '').toLowerCase() != 'landlord';
 
-  Query<Map<String, dynamic>> _buildAppliedQuery() {
-    if (_isSeeker) {
-      Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection('apartments');
-      if (_appliedLocation != null) q = q.where('location', isEqualTo: _appliedLocation);
-      if (_appliedPeriod != null) q = q.where('period', isEqualTo: _appliedPeriod);
-      if (_appliedMaxAgeDays != null) {
-        final ts = Timestamp.fromDate(DateTime.now().subtract(Duration(days: _appliedMaxAgeDays!)));
-        q = q.where('createdAt', isGreaterThanOrEqualTo: ts);
-      }
-      final priceNeeded = _appliedPrice.start > _priceMin || _appliedPrice.end < _priceMax;
-      final sizeNeeded = _appliedSize.start > _sizeMin || _appliedSize.end < _sizeMax;
-      final mateNeeded = _appliedMates.start > _matesMin || _appliedMates.end < _matesMax;
-      if (priceNeeded) q = q.where('price', isGreaterThanOrEqualTo: _appliedPrice.start, isLessThanOrEqualTo: _appliedPrice.end);
-      if (sizeNeeded) q = q.where('size', isGreaterThanOrEqualTo: _appliedSize.start, isLessThanOrEqualTo: _appliedSize.end);
-      if (mateNeeded) q = q.where('roommates', isGreaterThanOrEqualTo: _appliedMates.start.round(), isLessThanOrEqualTo: _appliedMates.end.round());
-      switch (_appliedSort) {
-        case 'Pris ↓':
-          q = q.orderBy('price', descending: true);
-          break;
-        case 'Pris ↑':
-          q = q.orderBy('price');
-          break;
-        case 'Størrelse ↓':
-          q = q.orderBy('size', descending: true);
-          break;
-        case 'Størrelse ↑':
-          q = q.orderBy('size');
-          break;
-        case 'Ældst først':
-          q = q.orderBy('createdAt');
-          break;
-        default:
-          q = q.orderBy('createdAt', descending: true);
-      }
-      if (priceNeeded && !_appliedSort.startsWith('Pris')) q = q.orderBy('price');
-      if (sizeNeeded && !_appliedSort.startsWith('Størrelse')) q = q.orderBy('size');
-      if (mateNeeded) q = q.orderBy('roommates');
-      return q;
-    } else {
-      Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection('applications');
-      if (_appliedMaxAgeDays != null) {
-        final ts = Timestamp.fromDate(DateTime.now().subtract(Duration(days: _appliedMaxAgeDays!)));
-        q = q.where('createdAt', isGreaterThanOrEqualTo: ts);
-      }
-      if (_appliedSort == 'Ældst først') {
+  Query<Map<String, dynamic>> _baseQuery() {
+    final coll = _isSeeker ? 'apartments' : 'applications';
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(coll);
+    switch (_appliedSort) {
+      case 'Pris ↓':
+        q = q.orderBy('price', descending: true);
+        break;
+      case 'Pris ↑':
+        q = q.orderBy('price');
+        break;
+      case 'Størrelse ↓':
+        q = q.orderBy('size', descending: true);
+        break;
+      case 'Størrelse ↑':
+        q = q.orderBy('size');
+        break;
+      case 'Ældst først':
         q = q.orderBy('createdAt');
-      } else {
+        break;
+      default:
         q = q.orderBy('createdAt', descending: true);
+    }
+    return q;
+  }
+
+  bool _passesClientFilters(Map<String, dynamic> d) {
+    if (_appliedLocation != null && (d['location'] ?? '') != _appliedLocation) return false;
+    if (_appliedPeriod != null && (d['period'] ?? '') != _appliedPeriod) return false;
+    if (_appliedMaxAgeDays != null) {
+      final ts = (d['createdAt'] as Timestamp?)?.toDate();
+      if (ts == null || ts.isBefore(DateTime.now().subtract(Duration(days: _appliedMaxAgeDays!)))) {
+        return false;
       }
-      return q;
+    }
+    if (_isSeeker) {
+      final p = ((d['price'] ?? 0) as num).toDouble();
+      final s = ((d['size'] ?? 0) as num).toDouble();
+      final m = ((d['roommates'] ?? 0) as num).toDouble();
+      final priceOk = p >= _appliedPrice.start && p <= _appliedPrice.end;
+      final sizeOk = s >= _appliedSize.start && s <= _appliedSize.end;
+      final matesOk = m >= _appliedMates.start && m <= _appliedMates.end;
+      if (!priceOk || !sizeOk || !matesOk) return false;
+    }
+    return true;
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _initialLoading = true;
+      _pageLoading = false;
+      _hasMore = true;
+      _docs = [];
+      _lastDoc = null;
+    });
+    await _fetchNext();
+    if (mounted) setState(() => _initialLoading = false);
+  }
+
+  Future<void> _fetchNext() async {
+    if (!_hasMore) return;
+    setState(() => _pageLoading = true);
+    try {
+      var q = _baseQuery();
+      if (_lastDoc != null) q = q.startAfterDocument(_lastDoc!);
+
+      int collected = 0;
+      int rounds = 0;
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> accepted = [];
+
+      while (collected < _pageSize && _hasMore && rounds < _maxFetchRounds) {
+        final snap = await q.limit(_pageSize).get();
+        if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
+        final filtered = snap.docs.where((d) => _passesClientFilters(d.data())).toList();
+        accepted.addAll(filtered);
+        collected += filtered.length;
+        if (snap.docs.length < _pageSize) {
+          _hasMore = false;
+          break;
+        }
+        q = _baseQuery().startAfterDocument(_lastDoc!);
+        rounds++;
+      }
+
+      if (accepted.isNotEmpty) _docs.addAll(accepted);
+    } finally {
+      if (mounted) setState(() => _pageLoading = false);
     }
   }
 
@@ -149,8 +198,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     _appliedPrice = _price;
     _appliedSize = _size;
     _appliedMates = _mates;
-    _resultsStream = _buildAppliedQuery().snapshots();
-    setState(() {});
+    _reload();
   }
 
   Future<List<String>> _fetchImageUrls(String parentCollection, String parentId) async {
@@ -164,37 +212,37 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     return q.docs.map((d) => (d.data()['url'] as String)).toList();
   }
 
+  Future<List<String>> _fetchAndPrefetchImages(String parentCollection, String parentId) async {
+    final urls = await _fetchImageUrls(parentCollection, parentId);
+    if (urls.isNotEmpty) {
+      await Future.wait(urls.map((u) => precacheImage(NetworkImage(u), context)));
+    }
+    return urls;
+  }
+
   void _openApplication(String docId, Map<String, dynamic> d) async {
-    final images = await _fetchImageUrls('applications', docId);
+    final images = await _fetchAndPrefetchImages('applications', docId);
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(d['title'] ?? '', style: _titleStrong),
-                      const SizedBox(height: 8),
-                      Text((d['description'] ?? '').toString(), style: _subMuted),
-                    ],
-                  ),
-                ),
-              ],
+      builder: (_) => SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(d['title'] ?? '', style: _titleStrong),
+                const SizedBox(height: 8),
+                Text((d['description'] ?? '').toString(), style: _subMuted),
+              ]),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -224,7 +272,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
           actions: [
             IconButton(
               icon: const Icon(FluentIcons.settings_24_regular),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
             ),
           ],
           bottom: const PreferredSize(
@@ -232,157 +280,128 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
           ),
         ),
-        body: _resultsStream == null
-            ? const Center(child: CircularProgressIndicator())
-            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _resultsStream,
-                builder: (_, snap) {
-                  final docs = snap.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-                  final modeLoading = snap.connectionState == ConnectionState.waiting;
-                  final modeError = snap.hasError;
-                  final showEmpty = !modeLoading && !modeError && docs.isEmpty;
+        body: RefreshIndicator(
+          onRefresh: _reload,
+          child: ListView.separated(
+            controller: _scroll,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemCount: 1 + (_initialLoading ? 5 : _docs.length + (_pageLoading ? 1 : 0)),
+            itemBuilder: (_, i) {
+              if (i == 0) return _buildFilterCard(context, isSeeker);
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: 1 + (docs.isEmpty ? 1 : docs.length),
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
-                    itemBuilder: (_, i) {
-                      if (i == 0) return _buildFilterCard(context, isSeeker);
-                      if (modeError) {
-                        return Center(child: Text('Firestore-fejl: ${snap.error}', textAlign: TextAlign.center));
-                      }
-                      if (modeLoading && docs.isEmpty) {
-                        return const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 24), child: CircularProgressIndicator()));
-                      }
-                      if (showEmpty) {
-                        return Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Text(isSeeker ? 'Ingen værelser.' : 'Ingen ansøgninger.')));
-                      }
-                      final doc = docs[i - 1];
-                      final d = doc.data();
+              if (_initialLoading) return const _SkeletonCard();
 
-                      if (isSeeker) {
-                        // Apartments
-                        return FutureBuilder<List<String>>(
-                          future: _fetchImageUrls('apartments', doc.id),
-                          builder: (ctx, imgSnap) {
-                            final images = imgSnap.data ?? const <String>[];
-                            return GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
-                              child: Card(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                elevation: 2,
-                                clipBehavior: Clip.antiAlias,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-                                    Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          // Title
-                                          Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
-                                          const SizedBox(height: 6),
+              final index = i - 1;
+              if (index >= _docs.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              }
 
-                                          // Row 1: location (left) + size (right)
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  d['location'] ?? 'Ukendt',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: _subMuted,
-                                                ),
-                                              ),
-                                              Text('${(d['size'] ?? 0).toString()} m²', style: _subMuted),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
+              final doc = _docs[index];
+              final d = doc.data();
 
-                                          // Row 2: Periode (left only)
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  'Periode: ${d['period'] ?? ''}',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: _subMuted,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-
-                                          // Row 3: Roommates (left) + Price (right)
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  'Roommates: ${((d['roommates'] ?? 0) as num).toInt()}',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: _subMuted,
-                                                ),
-                                              ),
-                                              Text('${(d['price'] ?? 0).toString()} DKK', style: _subStrong),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+              if (isSeeker) {
+                return FutureBuilder<List<String>>(
+                  future: _fetchAndPrefetchImages('apartments', doc.id),
+                  builder: (ctx, imgSnap) {
+                    final waiting = imgSnap.connectionState == ConnectionState.waiting;
+                    final images = imgSnap.data ?? const <String>[];
+                    return Card(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 2,
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: waiting
+                                  ? const _SkeletonImage()
+                                  : GestureDetector(
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
+                                      child: _UrlImagesPager(urls: images),
                                     ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted)),
+                                    Text('${(d['size'] ?? 0).toString()} m²', style: _subMuted),
                                   ],
                                 ),
-                              ),
-                            );
-                          },
-                        );
-                      } else {
-                        // Applications
-                        return FutureBuilder<List<String>>(
-                          future: _fetchImageUrls('applications', doc.id),
-                          builder: (ctx, imgSnap) {
-                            final images = imgSnap.data ?? const <String>[];
-                            return InkWell(
-                              onTap: () => _openApplication(doc.id, d),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Card(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                elevation: 2,
-                                clipBehavior: Clip.antiAlias,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(height: 4),
+                                Row(children: [Expanded(child: Text('Periode: ${d['period'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted))]),
+                                const SizedBox(height: 4),
+                                Row(
                                   children: [
-                                    AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-                                    Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            (d['description'] ?? '').toString(),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: _subMuted,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    Expanded(child: Text('Roommates: ${((d['roommates'] ?? 0) as num).toInt()}', style: _subMuted)),
+                                    Text('${(d['price'] ?? 0).toString()} DKK', style: _subStrong),
                                   ],
                                 ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              } else {
+                return FutureBuilder<List<String>>(
+                  future: _fetchAndPrefetchImages('applications', doc.id),
+                  builder: (ctx, imgSnap) {
+                    final waiting = imgSnap.connectionState == ConnectionState.waiting;
+                    final images = imgSnap.data ?? const <String>[];
+                    return InkWell(
+                      onTap: () => _openApplication(doc.id, d),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 2,
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: waiting ? const _SkeletonImage() : _UrlImagesPager(urls: images),
                               ),
-                            );
-                          },
-                        );
-                      }
-                    },
-                  );
-                },
-              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
+                                  const SizedBox(height: 6),
+                                  Text((d['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: _subMuted),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }
+            },
+          ),
+        ),
       ),
     );
   }
@@ -402,7 +421,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
         : const SizedBox.shrink();
 
     return Card(
-      margin: EdgeInsets.zero, // sits inside the scrolling list
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
@@ -463,10 +482,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                                       ),
                                     ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor),
-                                  ),
+                                  Padding(padding: const EdgeInsets.only(right: 8), child: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor)),
                                 ],
                               ),
                             ),
@@ -519,13 +535,12 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          // Nulstil (same size as Opdater, subtle bg)
                           Expanded(
                             child: SizedBox(
                               height: _controlH,
                               child: TextButton(
                                 style: ButtonStyle(
-                                  backgroundColor: MaterialStateProperty.resolveWith((_) => const Color(0xFFEFF2F6)),
+                                  backgroundColor: MaterialStateProperty.all(const Color(0xFFEFF2F6)),
                                   minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
                                   padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
                                   foregroundColor: MaterialStateProperty.all(_labelColor),
@@ -546,7 +561,6 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // Opdater
                           Expanded(
                             child: SizedBox(
                               height: _controlH,
@@ -654,7 +668,7 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
   Widget build(BuildContext context) {
     final len = widget.urls.length;
     if (len == 0) {
-      return Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
+      return const _SkeletonImage();
     }
     final leftEnabled = _i > 0;
     final rightEnabled = _i < len - 1;
@@ -666,7 +680,13 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
           physics: len > 1 ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
           onPageChanged: (v) => setState(() => _i = v),
           itemCount: len,
-          itemBuilder: (_, idx) => Image.network(widget.urls[idx], fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+          itemBuilder: (_, idx) => Image.network(
+            widget.urls[idx],
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            gaplessPlayback: true,
+          ),
         ),
         if (leftEnabled)
           Align(
@@ -696,3 +716,102 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
     );
   }
 }
+
+class _SkeletonImage extends StatelessWidget {
+  const _SkeletonImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _Shimmer(child: ColoredBox(color: Color(0xFFEFF2F6)));
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AspectRatio(aspectRatio: 16 / 9, child: _SkeletonImage()),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                _Shimmer(child: _Box(width: 200, height: 16)),
+                SizedBox(height: 10),
+                _Shimmer(child: _Box(width: 160, height: 12)),
+                SizedBox(height: 6),
+                _Shimmer(child: _Box(width: 120, height: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Box extends StatelessWidget {
+  final double width;
+  final double height;
+  const _Box({required this.width, required this.height});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(color: const Color(0xFFEFF2F6), borderRadius: BorderRadius.circular(6)),
+    );
+  }
+}
+
+class _Shimmer extends StatefulWidget {
+  final Widget child;
+  const _Shimmer({required this.child});
+  @override
+  State<_Shimmer> createState() => _ShimmerState();
+}
+
+class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        return ShaderMask(
+          shaderCallback: (rect) {
+            return const LinearGradient(
+              colors: [Color(0xFFEFF2F6), Color(0xFFF5F7FB), Color(0xFFEFF2F6)],
+              stops: [0.2, 0.5, 0.8],
+            ).createShader(rect);
+          },
+          blendMode: BlendMode.srcATop,
+          child: widget.child,
+        );
+      },
+    );
+  }
+}
+
+PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      transitionsBuilder: (_, __, ___, child) => child,
+    );
