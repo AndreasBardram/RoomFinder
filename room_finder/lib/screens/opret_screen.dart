@@ -177,11 +177,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Uint8List _unwrapImageField(dynamic v) {
-  if (v is Uint8List) return v;
-  if (v is Blob) return v.bytes;
-  if (v is List<int>) return Uint8List.fromList(v);
-  if (v is List<dynamic>) return Uint8List.fromList(v.cast<int>());
-  throw Exception('Ukendt billedtype: ${v.runtimeType}');
+    if (v is Uint8List) return v;
+    if (v is Blob) return v.bytes;
+    if (v is List<int>) return Uint8List.fromList(v);
+    if (v is List<dynamic>) return Uint8List.fromList(v.cast<int>());
+    throw Exception('Ukendt billedtype: ${v.runtimeType}');
   }
 
   Future<void> _saveImagesToCollection({
@@ -189,30 +189,48 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     required String parentId,
     required List<XFile> files,
   }) async {
-    final imagesCol = FirebaseFirestore.instance.collection('images');
+    final col = FirebaseFirestore.instance.collection('images');
+    var ok = 0;
     for (var i = 0; i < files.length && i < 3; i++) {
       final bytes = await _jpeg1080(files[i]);
       debugPrint('[save] parent=$parentCollection/$parentId idx=$i bytes=${bytes.lengthInBytes}');
-      if (bytes.lengthInBytes > 950 * 1024) {
-        throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
-      }
-      final imageDocId = '${parentCollection}_${parentId}_$i';
-      debugPrint('[save] writing images/$imageDocId');
-      await imagesCol.doc(imageDocId).set({
+      if (bytes.lengthInBytes > 950 * 1024) throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
+      final data = {
         'parentCollection': parentCollection,
         'parentId': parentId,
         'index': i,
-        'bytes': bytes,
+        'bytes': Blob(bytes),
         'mime': 'image/jpeg',
         'createdAt': FieldValue.serverTimestamp(),
-      });
-      debugPrint('[save] ok images/$imageDocId');
+      };
+      final id = '${parentCollection}_${parentId}_$i';
+      try {
+        debugPrint('[save] set images/$id');
+        await col.doc(id).set(data);
+        debugPrint('[save] ok set images/$id');
+        ok++;
+      } on FirebaseException catch (e) {
+        debugPrint('[save][set][err] code=${e.code} msg=${e.message}');
+        final r = await col.add(data);
+        debugPrint('[save] ok add images/${r.id}');
+        ok++;
+      }
     }
-    debugPrint('[save] all done for $parentCollection/$parentId');
+    debugPrint('[save] done count=$ok');
   }
 
   Future<Uint8List?> _fetchFirstImage(String parentCollection, String parentId) async {
     debugPrint('[fetchFirst] $parentCollection/$parentId');
+    final byId = '${parentCollection}_${parentId}_0';
+    try {
+      final doc = await FirebaseFirestore.instance.collection('images').doc(byId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['bytes'] != null) return _unwrapImageField(data['bytes']);
+      }
+    } catch (e) {
+      debugPrint('[fetchFirst][byId][err] $e');
+    }
     try {
       final q = await FirebaseFirestore.instance
           .collection('images')
@@ -265,10 +283,61 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
   }
 
+  Future<bool> _confirmDelete(String title) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Slet?'),
+            content: Text('Vil du slette "$title"?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuller')),
+              ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Slet')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _deleteListing(String parentCollection, String parentId) async {
+    debugPrint('[delete] start $parentCollection/$parentId');
+    setState(() => _isUploading = true);
+    try {
+      final col = FirebaseFirestore.instance.collection('images');
+      final imgs = await col
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .get();
+      final batch = FirebaseFirestore.instance.batch();
+      for (final d in imgs.docs) {
+        batch.delete(d.reference);
+      }
+      batch.delete(FirebaseFirestore.instance.collection(parentCollection).doc(parentId));
+      await batch.commit();
+      debugPrint('[delete] ok $parentCollection/$parentId and ${imgs.docs.length} images');
+      setState(() {});
+    } catch (e, st) {
+      debugPrint('[delete][err] $e\n$st');
+      _showError('Kunne ikke slette: $e');
+    } finally {
+      setState(() => _isUploading = false);
+    }
+  }
+
+  Future<bool> _reachedLimit(String collection, String uid, {int max = 5}) async {
+    final qs = await FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: uid).limit(max).get();
+    final reached = qs.docs.length >= max;
+    debugPrint('[limit] $collection count=${qs.docs.length} reached=$reached');
+    return reached;
+  }
+
   Future<void> _createApartment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     if (!_validateListing()) return;
+    if (await _reachedLimit('apartments', user.uid)) {
+      _showError('Du kan maksimalt have 5 opslag. Slet et for at oprette nyt.');
+      return;
+    }
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
     final address = _addressController.text.trim();
@@ -312,6 +381,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     if (!_validateApplication()) return;
+    if (await _reachedLimit('applications', user.uid)) {
+      _showError('Du kan maksimalt have 5 ansøgninger. Slet en for at oprette ny.');
+      return;
+    }
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
@@ -444,19 +517,79 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  Widget _cover(String parentCollection, String parentId, double height) {
-    return FutureBuilder<Uint8List?>(
-      future: _fetchFirstImage(parentCollection, parentId),
-      builder: (_, s) {
-        if (s.hasError) debugPrint('[cover][err] ${s.error}');
-        if (s.connectionState == ConnectionState.waiting) {
-          return Container(height: height, color: Colors.grey[300], child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
-        }
-        if (s.data == null) {
-          return Container(height: height, color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
-        }
-        return Image.memory(s.data!, height: height, width: double.infinity, fit: BoxFit.cover);
-      },
+  Widget _itemCard({
+    required String collection,
+    required String parentId,
+    required Map<String, dynamic> data,
+    required double imageHeight,
+  }) {
+    final title = (data['title'] ?? '').toString();
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              _ImagesPager(future: _fetchAllImages(collection, parentId), height: imageHeight),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.white),
+                    onPressed: () async {
+                      if (await _confirmDelete(title)) {
+                        await _deleteListing(collection, parentId);
+                        setState(() {});
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          if (collection == 'apartments') ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(child: Text((data['location'] ?? 'Ukendt').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                  Text('${(data['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(child: Text((data['period'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                  Text('${(data['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              child: Text('Roommates: ${(data['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            ),
+            const SizedBox(height: 8),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text((data['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
     );
   }
 
@@ -505,88 +638,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             }
             return LayoutBuilder(
               builder: (ctx, constraints) {
-                const count = 2;
-                const hPad = 8.0;
-                const spacing = 16.0;
-                final w = (constraints.maxWidth - hPad * 2 - spacing * (count - 1)) / count;
-                final h = isSeeker ? w + 88 : w + 124;
-                return GridView.builder(
+                final w = constraints.maxWidth;
+                final imageH = w * 0.6;
+                return ListView.separated(
+                  itemCount: docs.length,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: count,
-                    crossAxisSpacing: spacing,
-                    mainAxisSpacing: spacing,
-                    mainAxisExtent: h,
-                  ),
-                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 16),
                   itemBuilder: (_, i) {
                     final d = docs[i].data();
-                    final parentId = docs[i].id;
-                    if (!isSeeker) {
-                      return Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                        clipBehavior: Clip.antiAlias,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _cover('apartments', parentId, w * 0.6),
-                            Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Row(
-                                children: [
-                                  Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                                  Text('${(d['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              child: Row(
-                                children: [
-                                  Expanded(child: Text(d['period'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                                  Text('${(d['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Text('Roommates: ${(d['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _cover('applications', parentId, w * 0.6),
-                          Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text(
-                              (d['description'] ?? '').toString(),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12, color: Colors.black54),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
+                    final id = docs[i].id;
+                    return _itemCard(collection: collection, parentId: id, data: d, imageHeight: imageH);
                   },
                 );
               },
@@ -648,6 +710,101 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   ),
               ],
             ),
+    );
+  }
+}
+
+class _ImagesPager extends StatefulWidget {
+  final Future<List<Uint8List>> future;
+  final double height;
+  const _ImagesPager({required this.future, required this.height});
+
+  @override
+  State<_ImagesPager> createState() => _ImagesPagerState();
+}
+
+class _ImagesPagerState extends State<_ImagesPager> {
+  final _controller = PageController();
+  List<Uint8List>? _imgs;
+  int _i = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.future.then((v) {
+      if (!mounted) return;
+      setState(() => _imgs = v);
+    }).catchError((e) {
+      debugPrint('[_ImagesPager][err] $e');
+      if (!mounted) return;
+      setState(() => _imgs = const []);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _go(int dir) {
+    if (_imgs == null || _imgs!.isEmpty) return;
+    final next = (_i + dir).clamp(0, _imgs!.length - 1);
+    if (next == _i) return;
+    _controller.animateToPage(next, duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+    setState(() => _i = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_imgs == null) {
+      return Container(height: widget.height, color: Colors.grey[300], child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    if (_imgs!.isEmpty) {
+      return Container(height: widget.height, color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
+    }
+    return SizedBox(
+      height: widget.height,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            onPageChanged: (v) => setState(() => _i = v),
+            itemCount: _imgs!.length,
+            itemBuilder: (_, idx) => Image.memory(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover),
+          ),
+          if (_imgs!.length > 1)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                    onPressed: _i == 0 ? null : () => _go(-1),
+                  ),
+                ),
+              ),
+            ),
+          if (_imgs!.length > 1)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                    onPressed: _i == _imgs!.length - 1 ? null : () => _go(1),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
