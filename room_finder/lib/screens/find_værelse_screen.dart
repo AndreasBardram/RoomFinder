@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import '../components/apartment_card.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'mere_information.dart';
 import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
@@ -94,15 +94,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
       final priceNeeded = _appliedPrice.start > _priceMin || _appliedPrice.end < _priceMax;
       final sizeNeeded = _appliedSize.start > _sizeMin || _appliedSize.end < _sizeMax;
       final mateNeeded = _appliedMates.start > _matesMin || _appliedMates.end < _matesMax;
-      if (priceNeeded) {
-        q = q.where('price', isGreaterThanOrEqualTo: _appliedPrice.start, isLessThanOrEqualTo: _appliedPrice.end);
-      }
-      if (sizeNeeded) {
-        q = q.where('size', isGreaterThanOrEqualTo: _appliedSize.start, isLessThanOrEqualTo: _appliedSize.end);
-      }
-      if (mateNeeded) {
-        q = q.where('roommates', isGreaterThanOrEqualTo: _appliedMates.start.round(), isLessThanOrEqualTo: _appliedMates.end.round());
-      }
+      if (priceNeeded) q = q.where('price', isGreaterThanOrEqualTo: _appliedPrice.start, isLessThanOrEqualTo: _appliedPrice.end);
+      if (sizeNeeded) q = q.where('size', isGreaterThanOrEqualTo: _appliedSize.start, isLessThanOrEqualTo: _appliedSize.end);
+      if (mateNeeded) q = q.where('roommates', isGreaterThanOrEqualTo: _appliedMates.start.round(), isLessThanOrEqualTo: _appliedMates.end.round());
       switch (_appliedSort) {
         case 'Pris ↓':
           q = q.orderBy('price', descending: true);
@@ -153,8 +147,20 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     setState(() {});
   }
 
-  void _openApplication(Map<String, dynamic> d) {
-    final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
+  Future<List<String>> _fetchImageUrls(String parentCollection, String parentId) async {
+    final q = await FirebaseFirestore.instance
+        .collection('images')
+        .where('parentCollection', isEqualTo: parentCollection)
+        .where('parentId', isEqualTo: parentId)
+        .orderBy('index')
+        .limit(3)
+        .get();
+    return q.docs.map((d) => (d.data()['url'] as String)).toList();
+  }
+
+  void _openApplication(String docId, Map<String, dynamic> d) async {
+    final images = await _fetchImageUrls('applications', docId);
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -166,11 +172,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (images.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: Image.network(images.first, fit: BoxFit.cover, height: 220, width: double.infinity),
-                  ),
+                AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -215,7 +217,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
           title: Text(isSeeker ? 'Find værelser' : 'Se ansøgninger'),
           actions: [
             IconButton(
-              icon: Icon(PhosphorIcons.gearSix(), color: _iconColor),
+              icon: const Icon(FluentIcons.settings_24_regular),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
           ],
@@ -242,59 +244,86 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                         return ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           itemBuilder: (_, i) {
-                            final d = docs[i].data();
+                            final doc = docs[i];
+                            final d = doc.data();
                             if (isSeeker) {
-                              final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
-                              return GestureDetector(
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
-                                child: ApartmentCard(
-                                  images: images,
-                                  title: d['title'] ?? '',
-                                  location: d['location'] ?? 'Ukendt',
-                                  price: d['price'] ?? 0,
-                                  size: (d['size'] ?? 0).toDouble(),
-                                  period: d['period'] ?? '',
-                                  roommates: (d['roommates'] ?? 0) as int,
-                                ),
+                              return FutureBuilder<List<String>>(
+                                future: _fetchImageUrls('apartments', doc.id),
+                                builder: (ctx, imgSnap) {
+                                  final images = imgSnap.data ?? const <String>[];
+                                  return GestureDetector(
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
+                                    child: Card(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      elevation: 2,
+                                      clipBehavior: Clip.antiAlias,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
+                                          Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                                                    Text('${(d['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Expanded(child: Text(d['period'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                                                    Text('${(d['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text('Roommates: ${(d['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               );
                             } else {
-                              final images = (d['imageUrls'] as List?)?.whereType<String>().toList() ?? [];
-                              final firstImage = images.isNotEmpty ? images.first : null;
-                              return InkWell(
-                                onTap: () => _openApplication(d),
-                                borderRadius: BorderRadius.circular(16),
-                                child: Card(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  elevation: 2,
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      AspectRatio(
-                                        aspectRatio: 16 / 9,
-                                        child: firstImage != null
-                                            ? Image.network(firstImage, fit: BoxFit.cover)
-                                            : Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.person, color: Colors.white))),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              (d['description'] ?? '').toString(),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 12, color: Colors.black54),
+                              return FutureBuilder<List<String>>(
+                                future: _fetchImageUrls('applications', doc.id),
+                                builder: (ctx, imgSnap) {
+                                  final images = imgSnap.data ?? const <String>[];
+                                  return InkWell(
+                                    onTap: () => _openApplication(doc.id, d),
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Card(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      elevation: 2,
+                                      clipBehavior: Clip.antiAlias,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
+                                          Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                                const SizedBox(height: 6),
+                                                Text((d['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  );
+                                },
                               );
                             }
                           },
@@ -318,12 +347,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
               children: [
                 Icon(PhosphorIcons.info(), size: 16, color: _iconColor),
                 const SizedBox(width: 6),
-                const Expanded(
-                  child: Text(
-                    'Ansøgninger sorteres og kan filtreres på dato. Øvrige filtre vises men anvendes ikke.',
-                    style: TextStyle(fontSize: 12, color: _labelColor),
-                  ),
-                ),
+                const Expanded(child: Text('Ansøgninger sorteres og kan filtreres på dato. Øvrige filtre vises men anvendes ikke.', style: TextStyle(fontSize: 12, color: _labelColor))),
               ],
             ),
           )
@@ -541,6 +565,79 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
         valueIndicatorColor: Colors.grey,
       ),
       child: child,
+    );
+  }
+}
+
+class _UrlImagesPager extends StatefulWidget {
+  final List<String> urls;
+  const _UrlImagesPager({required this.urls});
+
+  @override
+  State<_UrlImagesPager> createState() => _UrlImagesPagerState();
+}
+
+class _UrlImagesPagerState extends State<_UrlImagesPager> {
+  final _controller = PageController();
+  int _i = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _go(int dir) {
+    final len = widget.urls.length;
+    if (len <= 1) return;
+    final next = (_i + dir).clamp(0, len - 1);
+    if (next == _i) return;
+    _controller.animateToPage(next, duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final len = widget.urls.length;
+    if (len == 0) {
+      return Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
+    }
+    final leftEnabled = _i > 0;
+    final rightEnabled = _i < len - 1;
+
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: _controller,
+          physics: len > 1 ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
+          onPageChanged: (v) => setState(() => _i = v),
+          itemCount: len,
+          itemBuilder: (_, idx) => Image.network(widget.urls[idx], fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+        ),
+        if (leftEnabled)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: IconButton(icon: const Icon(Icons.chevron_left, color: Colors.white), onPressed: () => _go(-1)),
+              ),
+            ),
+          ),
+        if (rightEnabled)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: IconButton(icon: const Icon(Icons.chevron_right, color: Colors.white), onPressed: () => _go(1)),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
