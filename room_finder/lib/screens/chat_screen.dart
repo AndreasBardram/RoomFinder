@@ -13,22 +13,29 @@ import 'opret_profil_screen.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, this.room});
-
-  final types.Room? room; // null → list, set → single room
+  final types.Room? room;
 
   @override
   Widget build(BuildContext context) {
     final auth = FirebaseAuth.instance.currentUser;
     if (auth == null) {
-      return Scaffold(appBar: AppBar(title: const Text('Chat')), body: _loggedOut(context));
+      return Scaffold(appBar: _appBar('Chat'), body: _loggedOut(context));
     }
-
-    return room == null
-        ? _RoomsPage(currentUser: auth)
-        : _RoomPage(room: room!, currentUser: auth);
+    return room == null ? _RoomsPage(currentUser: auth) : _RoomPage(room: room!, currentUser: auth);
   }
 
-  /* ---------- logged-out helper ---------- */
+  PreferredSizeWidget _appBar(String title) => AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(title),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+        ),
+      );
 
   Widget _loggedOut(BuildContext ctx) => Center(
         child: Column(
@@ -53,50 +60,85 @@ class ChatScreen extends StatelessWidget {
       );
 }
 
-/* ──────────────────────────────────────────────────────────────────────────── */
-/* 1. CONVERSATION LIST                                                        */
-/* ──────────────────────────────────────────────────────────────────────────── */
+/* ───────────────────────────────────────── Rooms list ───────────────────────────────────────── */
 
 class _RoomsPage extends StatelessWidget {
   const _RoomsPage({required this.currentUser});
   final User currentUser;
 
+  static const _hairline = Color(0xFFF1F5F9);
+  static const _subtitle = Color(0xFF6B7280);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: const Text('Chat'),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: _hairline),
+        ),
+      ),
       body: StreamBuilder<List<types.Room>>(
         stream: FirebaseChatCore.instance.rooms(),
         builder: (_, snap) {
           final rooms = snap.data ?? [];
-
           if (rooms.isEmpty) {
             return const Center(child: Text('Ingen samtaler endnu'));
           }
-
           return ListView.separated(
             itemCount: rooms.length,
-            separatorBuilder: (_, __) => const Divider(height: 0),
+            separatorBuilder: (_, __) => const Divider(height: 0, color: _hairline),
             itemBuilder: (_, i) {
               final room = rooms[i];
               final last = room.lastMessages?.isNotEmpty == true ? room.lastMessages!.last : null;
-
               String subtitle = '';
               if (last is types.TextMessage) subtitle = last.text;
               final time = last != null && last.createdAt != null
-                  ? DateFormat.Hm('da').format(
-                      DateTime.fromMillisecondsSinceEpoch(last.createdAt!))
+                  ? DateFormat.Hm('da').format(DateTime.fromMillisecondsSinceEpoch(last.createdAt!))
                   : '';
-
-              return ListTile(
-                leading: _avatar(room, currentUser.uid),
-                title: Text(_title(room, currentUser.uid)),
-                subtitle:
-                    subtitle.isEmpty ? null : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: time.isEmpty ? null : Text(time, style: const TextStyle(fontSize: 11)),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ChatScreen(room: room)),
+              return InkWell(
+                onTap: () => Navigator.push(_, MaterialPageRoute(builder: (_) => ChatScreen(room: room))),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      _avatar(room, currentUser.uid),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_title(room, currentUser.uid),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            if (subtitle.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13, color: _subtitle),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (time.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text(time, style: const TextStyle(fontSize: 11, color: _subtitle)),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -108,10 +150,13 @@ class _RoomsPage extends StatelessWidget {
 
   Widget _avatar(types.Room room, String myId) {
     final other = room.users.firstWhere((u) => u.id != myId, orElse: () => types.User(id: myId));
-    final initial = (other.firstName?.isNotEmpty == true) ? other.firstName![0] : '🤖';
-    return other.imageUrl != null
-        ? CircleAvatar(backgroundImage: NetworkImage(other.imageUrl!))
-        : CircleAvatar(child: Text(initial));
+    if (other.imageUrl != null && other.imageUrl!.isNotEmpty) {
+      return CircleAvatar(radius: 18, backgroundImage: NetworkImage(other.imageUrl!));
+    }
+    final name = (other.firstName?.isNotEmpty == true ? other.firstName! : room.name ?? 'B');
+    final letter = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'B';
+    final color = _colorFromString(other.id);
+    return CircleAvatar(radius: 18, backgroundColor: color, child: Text(letter, style: const TextStyle(color: Colors.white)));
   }
 
   String _title(types.Room room, String myId) {
@@ -119,11 +164,22 @@ class _RoomsPage extends StatelessWidget {
     final others = room.users.where((u) => u.id != myId);
     return others.map((u) => u.firstName ?? 'Bruger').join(', ');
   }
+
+  static Color _colorFromString(String s) {
+    final h = s.hashCode;
+    final palette = [
+      const Color(0xFF7C6CF4),
+      const Color(0xFF6366F1),
+      const Color(0xFF8B5CF6),
+      const Color(0xFF10B981),
+      const Color(0xFFF59E0B),
+      const Color(0xFFEF4444),
+    ];
+    return palette[h.abs() % palette.length];
+  }
 }
 
-/* ──────────────────────────────────────────────────────────────────────────── */
-/* 2. SINGLE ROOM                                                              */
-/* ──────────────────────────────────────────────────────────────────────────── */
+/* ───────────────────────────────────────────────── Single room ───────────────────────────────────────────────── */
 
 class _RoomPage extends StatefulWidget {
   const _RoomPage({required this.room, required this.currentUser});
@@ -147,14 +203,12 @@ class _RoomPageState extends State<_RoomPage> {
   }
 
   void _listen() {
-    _sub = FirebaseChatCore.instance
-        .messages(widget.room, limit: _limit)
-        .listen((m) => setState(() => _messages = m));
+    _sub = FirebaseChatCore.instance.messages(widget.room, limit: _limit).listen((m) => setState(() => _messages = m));
   }
 
   Future<void> _loadMore() async {
     setState(() => _limit += _page);
-    _sub.cancel();
+    await _sub.cancel();
     _listen();
   }
 
@@ -166,21 +220,39 @@ class _RoomPageState extends State<_RoomPage> {
 
   @override
   Widget build(BuildContext context) {
+    const hairline = Color(0xFFF1F5F9);
     return Scaffold(
-      appBar: AppBar(title: Text(widget.room.name ?? 'Chat')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(widget.room.name ?? 'Chat'),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: hairline),
+        ),
+      ),
       body: Chat(
         messages: _messages,
         user: types.User(id: widget.currentUser.uid),
         showUserNames: true,
         showUserAvatars: true,
         theme: const DefaultChatTheme(
+          backgroundColor: Colors.white,
           primaryColor: Colors.black,
+          secondaryColor: Color(0xFFF6F7FA),
           sentMessageBodyTextStyle: TextStyle(color: Colors.white),
+          receivedMessageBodyTextStyle: TextStyle(color: Colors.black87),
           inputBackgroundColor: Colors.white,
           inputTextColor: Colors.black,
+          inputTextCursorColor: Colors.black,
+          inputBorderRadius: BorderRadius.all(Radius.circular(16)),
+          inputPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         ),
-        onSendPressed: (types.PartialText msg) =>
-            FirebaseChatCore.instance.sendMessage(msg, widget.room.id),
+        onSendPressed: (types.PartialText msg) => FirebaseChatCore.instance.sendMessage(msg, widget.room.id),
         onEndReached: _loadMore,
         onEndReachedThreshold: 0.7,
       ),
