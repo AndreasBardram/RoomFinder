@@ -42,6 +42,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   String _ownerFirstName = '';
   String _ownerLastName = '';
 
+  static const _hairline = Color(0xFFF1F5F9);
+  static const _fill = Color(0xFFF6F7FA);
+  static const _hint = Color(0xFF9AA3B2);
+  static const _icon = Color(0xFF4B5563);
+
   @override
   void initState() {
     super.initState();
@@ -122,41 +127,83 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<void> _pickImages() async {
     final imgs = await _picker.pickMultiImage();
     _images = imgs.take(3).toList();
-    debugPrint('[pick] selected=${_images.length}');
     setState(() {});
+  }
+
+  // ---------- UI helpers ----------
+
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      );
+
+  InputDecoration _dec({required String hint, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _hint),
+      filled: true,
+      fillColor: _fill,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      suffixIcon: suffix,
+    );
+  }
+
+  Widget _labeledTF(String label, TextEditingController c, String hint,
+      {TextInputType? type, int maxLines = 1, Widget? suffix}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        TextField(
+          controller: c,
+          keyboardType: type,
+          maxLines: maxLines,
+          cursorColor: Colors.black,
+          decoration: _dec(hint: hint, suffix: suffix),
+        ),
+      ],
+    );
   }
 
   Widget _imagePickerButton() {
     final has = _images.isNotEmpty;
     return InkWell(
       onTap: _pickImages,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 120,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade400, width: 2),
-        ),
-        child: Center(
-          child: has
-              ? Text('${_images.length} billede(r) valgt – tryk for at ændre')
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.image, size: 32, color: Colors.grey),
-                    SizedBox(height: 8),
-                    Text('Tryk for at tilføje op til 3 billeder (valgfrit)'),
-                  ],
+      borderRadius: BorderRadius.circular(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: CustomPaint(
+          painter: _DashedRRectPainter(color: Colors.black12, radius: 16, dash: 8, gap: 6, strokeWidth: 2),
+          child: Container(
+            height: 160,
+            color: _fill,
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(FluentIcons.arrow_upload_24_regular, size: 28, color: _icon),
+                const SizedBox(height: 8),
+                Text(
+                  has ? '${_images.length} billede(r) valgt – tryk for at ændre'
+                      : 'Tryk for at tilføje op til 3 billeder (valgfrit)',
+                  style: const TextStyle(color: Colors.black87),
+                  textAlign: TextAlign.center,
                 ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
+  // ---------- Storage / Firestore helpers ----------
+
   Future<Uint8List> _jpeg1080(XFile f) async {
     final src = await f.readAsBytes();
-    debugPrint('[_jpeg1080] platform=${kIsWeb ? 'web' : 'native'} srcBytes=${src.length}');
     final decoded = img.decodeImage(src);
     if (decoded == null) throw Exception('Kunne ikke læse billedet');
     int tw = decoded.width, th = decoded.height;
@@ -175,7 +222,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         ? img.copyResize(decoded, width: tw, height: th, interpolation: img.Interpolation.cubic)
         : decoded;
     final jpg = img.encodeJpg(resized, quality: 80);
-    debugPrint('[_jpeg1080] out ${resized.width}x${resized.height} bytes=${jpg.length}');
     return Uint8List.fromList(jpg);
   }
 
@@ -185,10 +231,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     required List<XFile> files,
   }) async {
     final col = FirebaseFirestore.instance.collection('images');
-    var ok = 0;
     for (var i = 0; i < files.length && i < 3; i++) {
       final bytes = await _jpeg1080(files[i]);
-      debugPrint('[save] parent=$parentCollection/$parentId idx=$i bytes=${bytes.lengthInBytes}');
       if (bytes.lengthInBytes > 950 * 1024) throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
       final path = 'images/$parentCollection/$parentId/$i.jpg';
       final ref = _storage.ref().child(path);
@@ -206,18 +250,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       final id = '${parentCollection}_${parentId}_$i';
       try {
         await col.doc(id).set(data, SetOptions(merge: true));
-        ok++;
       } on FirebaseException {
-        final r = await col.add(data);
-        debugPrint('[save] ok add images/${r.id}');
-        ok++;
+        await col.add(data);
       }
     }
-    debugPrint('[save] done count=$ok');
   }
 
   Future<String?> _fetchFirstImage(String parentCollection, String parentId) async {
-    debugPrint('[fetchFirst] $parentCollection/$parentId');
     final byId = '${parentCollection}_${parentId}_0';
     try {
       final doc = await FirebaseFirestore.instance.collection('images').doc(byId).get();
@@ -250,7 +289,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<List<String>> _fetchAllImages(String parentCollection, String parentId) async {
-    debugPrint('[fetchAll] $parentCollection/$parentId');
     try {
       final q = await FirebaseFirestore.instance
           .collection('images')
@@ -288,7 +326,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }
 
   Future<void> _deleteListing(String parentCollection, String parentId) async {
-    debugPrint('[delete] start $parentCollection/$parentId');
     setState(() => _isUploading = true);
     try {
       final col = FirebaseFirestore.instance.collection('images');
@@ -302,9 +339,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         if (path.isNotEmpty) {
           try {
             await _storage.ref().child(path).delete();
-          } catch (e) {
-            debugPrint('[delete][storage] $e');
-          }
+          } catch (_) {}
         }
       }
       final batch = FirebaseFirestore.instance.batch();
@@ -313,10 +348,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       }
       batch.delete(FirebaseFirestore.instance.collection(parentCollection).doc(parentId));
       await batch.commit();
-      debugPrint('[delete] ok $parentCollection/$parentId and ${imgs.docs.length} images');
       setState(() {});
-    } catch (e, st) {
-      debugPrint('[delete][err] $e\n$st');
+    } catch (e) {
       _showError('Kunne ikke slette: $e');
     } finally {
       setState(() => _isUploading = false);
@@ -325,9 +358,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
   Future<bool> _reachedLimit(String collection, String uid, {int max = 5}) async {
     final qs = await FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: uid).limit(max).get();
-    final reached = qs.docs.length >= max;
-    debugPrint('[limit] $collection count=${qs.docs.length} reached=$reached');
-    return reached;
+    return qs.docs.length >= max;
   }
 
   Future<void> _createApartment() async {
@@ -367,8 +398,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       }
       _clearForm();
       _showError('Opslag gemt!');
-    } catch (e, st) {
-      debugPrint('[createApartment][err] $e\n$st');
+    } catch (e) {
       _showError('Fejl under upload: $e');
     } finally {
       setState(() => _isUploading = false);
@@ -400,8 +430,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       }
       _clearForm();
       _showError('Ansøgning gemt!');
-    } catch (e, st) {
-      debugPrint('[createApplication][err] $e\n$st');
+    } catch (e) {
       _showError('Fejl under upload: $e');
     } finally {
       setState(() => _isUploading = false);
@@ -418,9 +447,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _roommatesController.clear();
     _descriptionController.clear();
     _images = [];
-    debugPrint('[clearForm] cleared');
     setState(() {});
   }
+
+  // ---------- Forms ----------
 
   Widget _loggedOutBody(BuildContext context) {
     return Center(
@@ -459,15 +489,21 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       children: [
         _imagePickerButton(),
         const SizedBox(height: 24),
-        TextField(controller: _titleController, decoration: customInputDecoration(labelText: 'Titel')),
+        _labeledTF('Titel', _titleController, 'Skriv en titel'),
         const SizedBox(height: 16),
-        TextField(controller: _descriptionController, decoration: customInputDecoration(labelText: 'Beskrivelse'), maxLines: 5),
-        const SizedBox(height: 32),
+        _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 5),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: CustomButtonContainer(
             child: ElevatedButton(
-              style: customElevatedButtonStyle(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               onPressed: _isUploading ? null : _createApplication,
               child: const Text('Upload ansøgning'),
             ),
@@ -483,27 +519,41 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       children: [
         _imagePickerButton(),
         const SizedBox(height: 24),
-        TextField(controller: _titleController, decoration: customInputDecoration(labelText: 'Titel')),
+        _labeledTF('Titel', _titleController, 'Skriv en titel'),
         const SizedBox(height: 16),
+        _label('Postnummer'),
+        // Keeps PostnrField’s logic; picks up our InputDecorationTheme for matching look
         PostnrField(controller: _locationController),
         const SizedBox(height: 16),
-        TextField(controller: _addressController, decoration: customInputDecoration(labelText: 'Adresse')),
+        _labeledTF('Adresse', _addressController, 'fx Nørrebrogade 1'),
         const SizedBox(height: 16),
-        TextField(controller: _priceController, decoration: customInputDecoration(labelText: 'Pris (DKK)'), keyboardType: TextInputType.number),
+        _labeledTF('Pris (DKK)', _priceController, 'fx 6000',
+            type: TextInputType.number,
+            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
         const SizedBox(height: 16),
-        TextField(controller: _sizeController, decoration: customInputDecoration(labelText: 'Størrelse (m²)'), keyboardType: TextInputType.number),
+        _labeledTF('Størrelse (m²)', _sizeController, 'fx 18',
+            type: TextInputType.number,
+            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
         const SizedBox(height: 16),
-        TextField(controller: _periodController, decoration: customInputDecoration(labelText: 'Periode (måneder / ubegrænset)')),
+        _labeledTF('Periode (måneder / ubegrænset)', _periodController, 'fx ubegrænset eller 6 måneder'),
         const SizedBox(height: 16),
-        TextField(controller: _roommatesController, decoration: customInputDecoration(labelText: 'Antal roommates'), keyboardType: TextInputType.number),
+        _labeledTF('Antal roommates', _roommatesController, 'fx 2',
+            type: TextInputType.number,
+            suffix: const Icon(FluentIcons.chevron_down_24_regular, size: 18, color: _icon)),
         const SizedBox(height: 16),
-        TextField(controller: _descriptionController, decoration: customInputDecoration(labelText: 'Beskrivelse'), maxLines: 3),
-        const SizedBox(height: 32),
+        _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 4),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: CustomButtonContainer(
             child: ElevatedButton(
-              style: customElevatedButtonStyle(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               onPressed: _isUploading ? null : _createApartment,
               child: const Text('Upload værelse'),
             ),
@@ -521,7 +571,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }) {
     final title = (data['title'] ?? '').toString();
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -534,10 +584,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 top: 8,
                 right: 8,
                 child: Material(
-                  color: Colors.black54,
+                  color: Colors.white,
+                  elevation: 2,
                   shape: const CircleBorder(),
                   child: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.white),
+                    icon: const Icon(FluentIcons.delete_24_regular, color: Color(0xFFDC2626)),
                     onPressed: () async {
                       if (await _confirmDelete(title)) {
                         await _deleteListing(collection, parentId);
@@ -550,39 +601,42 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ],
           ),
           Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+            padding: const EdgeInsets.all(12),
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
           if (collection == 'apartments') ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  Expanded(child: Text((data['location'] ?? 'Ukendt').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                  Expanded(
+                    child: Text(
+                      (data['location'] ?? 'Ukendt').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ),
                   Text('${(data['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
               child: Row(
                 children: [
-                  Expanded(child: Text((data['period'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                  Text('${(data['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
+                  Expanded(
+                    child: Text((data['period'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ),
+                  Text('${(data['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-              child: Text('Roommates: ${(data['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-            ),
-            const SizedBox(height: 8),
           ] else ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Text((data['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
             ),
-            const SizedBox(height: 8),
           ],
         ],
       ),
@@ -597,10 +651,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 24),
-        const Divider(),
-        const SizedBox(height: 10),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
+        const Divider(color: _hairline),
+        const SizedBox(height: 12),
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
         FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
           key: ValueKey('${collection}_$uid'),
           future: FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: uid).get(),
@@ -660,56 +714,86 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final uid = user?.uid;
     final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isSeeker ? 'Opret ansøgning' : 'Opret værelse'),
-        actions: [
-          IconButton(
-            icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
-          ),
-        ],
+
+    final themed = Theme.of(context).copyWith(
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: Colors.black,
+        selectionColor: Color(0x33000000),
+        selectionHandleColor: Colors.black,
       ),
-      body: user == null
-          ? _loggedOutBody(context)
-          : Stack(
-              children: [
-                if (_profileType == null)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        isSeeker ? _applicationForm() : _listingForm(),
-                        if (uid != null) _userPostsSection(uid),
-                      ],
-                    ),
-                  ),
-                if (_isUploading)
-                  Container(
-                    color: Colors.black.withOpacity(0.15),
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-                if (_errorMsg != null)
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-                    child: Dismissible(
-                      key: ValueKey(_errorMsg),
-                      direction: DismissDirection.down,
-                      onDismissed: (_) => setState(() => _errorMsg = null),
-                      child: CustomErrorMessage(message: _errorMsg!),
-                    ),
-                  ),
-              ],
+      inputDecorationTheme: const InputDecorationTheme(
+        filled: true,
+        fillColor: _fill,
+        border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(12))),
+        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        hintStyle: TextStyle(color: _hint),
+      ),
+    );
+
+    return Theme(
+      data: themed,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+          iconTheme: const IconThemeData(color: Colors.black),
+          title: Text(isSeeker ? 'Opret ansøgning' : 'Opret værelse'),
+          actions: [
+            IconButton(
+              icon: const Icon(FluentIcons.settings_24_regular),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
+          ],
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1, thickness: 1, color: _hairline),
+          ),
+        ),
+        body: user == null
+            ? _loggedOutBody(context)
+            : Stack(
+                children: [
+                  if (_profileType == null)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          isSeeker ? _applicationForm() : _listingForm(),
+                          if (uid != null) _userPostsSection(uid),
+                        ],
+                      ),
+                    ),
+                  if (_isUploading)
+                    Container(
+                      color: Colors.black.withOpacity(0.15),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  if (_errorMsg != null)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+                      child: Dismissible(
+                        key: ValueKey(_errorMsg),
+                        direction: DismissDirection.down,
+                        onDismissed: (_) => setState(() => _errorMsg = null),
+                        child: CustomErrorMessage(message: _errorMsg!),
+                      ),
+                    ),
+                ],
+              ),
+      ),
     );
   }
 }
 
+// ---- gallery widget (unchanged behavior) ----
 class _ImagesPager extends StatefulWidget {
   final Future<List<String>> future;
   final double height;
@@ -730,8 +814,7 @@ class _ImagesPagerState extends State<_ImagesPager> {
     widget.future.then((v) {
       if (!mounted) return;
       setState(() => _imgs = v);
-    }).catchError((e) {
-      debugPrint('[_ImagesPager][err] $e');
+    }).catchError((_) {
       if (!mounted) return;
       setState(() => _imgs = const []);
     });
@@ -803,4 +886,46 @@ class _ImagesPagerState extends State<_ImagesPager> {
       ),
     );
   }
+}
+
+// ---- dashed rounded border painter for the upload box ----
+class _DashedRRectPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  final double dash;
+  final double gap;
+  final double strokeWidth;
+
+  _DashedRRectPainter({
+    required this.color,
+    required this.radius,
+    this.dash = 6,
+    this.gap = 4,
+    this.strokeWidth = 1.5,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    final metrics = path.computeMetrics();
+    for (final metric in metrics) {
+      double drawn = 0;
+      while (drawn < metric.length) {
+        final next = (drawn + dash).clamp(0, metric.length).toDouble();
+        final extract = metric.extractPath(drawn, next);
+        canvas.drawPath(extract, paint);
+        drawn = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter old) =>
+      old.color != color || old.radius != radius || old.dash != dash || old.gap != gap || old.strokeWidth != strokeWidth;
 }
