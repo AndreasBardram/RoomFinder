@@ -67,6 +67,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs = [];
   QueryDocumentSnapshot<Map<String, dynamic>>? _lastDoc;
 
+  // Cache image futures so expanding/collapsing filters doesn't trigger refetches
+  final Map<String, Future<List<String>>> _imageFutureCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -154,6 +157,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
       _hasMore = true;
       _docs = [];
       _lastDoc = null;
+      // Keep _imageFutureCache so already seen images remain cached between reloads
     });
     await _fetchNext();
     if (mounted) setState(() => _initialLoading = false);
@@ -220,8 +224,14 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     return urls;
   }
 
+  // Return a cached future for images to avoid refetching on rebuild (e.g., when toggling filters)
+  Future<List<String>> _imageFutureFor(String parentCollection, String parentId) {
+    final key = '$parentCollection/$parentId';
+    return _imageFutureCache.putIfAbsent(key, () => _fetchAndPrefetchImages(parentCollection, parentId));
+  }
+
   void _openApplication(String docId, Map<String, dynamic> d) async {
-    final images = await _fetchAndPrefetchImages('applications', docId);
+    final images = await _imageFutureFor('applications', docId);
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -305,9 +315,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
 
               if (isSeeker) {
                 return FutureBuilder<List<String>>(
-                  future: _fetchAndPrefetchImages('apartments', doc.id),
+                  future: _imageFutureFor('apartments', doc.id),
                   builder: (ctx, imgSnap) {
-                    final waiting = imgSnap.connectionState == ConnectionState.waiting;
+                    final waiting = imgSnap.connectionState == ConnectionState.waiting && (imgSnap.data == null);
                     final images = imgSnap.data ?? const <String>[];
                     return Card(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -323,7 +333,16 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                               child: waiting
                                   ? const _SkeletonImage()
                                   : GestureDetector(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => MoreInformationScreen(
+                                            data: d,
+                                            parentCollection: 'apartments',
+                                            parentId: doc.id,
+                                          ),
+                                        ),
+                                      ),
                                       child: _UrlImagesPager(urls: images),
                                     ),
                             ),
@@ -360,9 +379,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                 );
               } else {
                 return FutureBuilder<List<String>>(
-                  future: _fetchAndPrefetchImages('applications', doc.id),
+                  future: _imageFutureFor('applications', doc.id),
                   builder: (ctx, imgSnap) {
-                    final waiting = imgSnap.connectionState == ConnectionState.waiting;
+                    final waiting = imgSnap.connectionState == ConnectionState.waiting && (imgSnap.data == null);
                     final images = imgSnap.data ?? const <String>[];
                     return InkWell(
                       onTap: () => _openApplication(doc.id, d),
@@ -693,11 +712,7 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.only(left: 4),
-              child: Material(
-                color: Colors.black54,
-                shape: const CircleBorder(),
-                child: IconButton(icon: const Icon(Icons.chevron_left, color: Colors.white), onPressed: () => _go(-1)),
-              ),
+              child: _NavButton(icon: Icons.chevron_left, onPressed: () => _go(-1)),
             ),
           ),
         if (rightEnabled)
@@ -705,14 +720,34 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
             alignment: Alignment.centerRight,
             child: Padding(
               padding: const EdgeInsets.only(right: 4),
-              child: Material(
-                color: Colors.black54,
-                shape: const CircleBorder(),
-                child: IconButton(icon: const Icon(Icons.chevron_right, color: Colors.white), onPressed: () => _go(1)),
-              ),
+              child: _NavButton(icon: Icons.chevron_right, onPressed: () => _go(1)),
             ),
           ),
       ],
+    );
+  }
+}
+
+// Small, correct-direction nav button (fixed to use passed icon)
+class _NavButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  const _NavButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black54,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: SizedBox(
+          width: 28,  // smaller button
+          height: 28,
+          child: Center(child: Icon(icon, size: 16, color: Colors.white)), // uses the icon param (fix)
+        ),
+      ),
     );
   }
 }
