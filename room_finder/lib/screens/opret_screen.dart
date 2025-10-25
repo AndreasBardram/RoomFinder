@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
@@ -31,6 +32,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _descriptionController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
+  final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://roomfinder-cec5a.firebasestorage.app');
+
   List<XFile> _images = [];
   bool _isUploading = false;
   String? _errorMsg;
@@ -176,14 +179,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Uint8List.fromList(jpg);
   }
 
-  Uint8List _unwrapImageField(dynamic v) {
-    if (v is Uint8List) return v;
-    if (v is Blob) return v.bytes;
-    if (v is List<int>) return Uint8List.fromList(v);
-    if (v is List<dynamic>) return Uint8List.fromList(v.cast<int>());
-    throw Exception('Ukendt billedtype: ${v.runtimeType}');
-  }
-
   Future<void> _saveImagesToCollection({
     required String parentCollection,
     required String parentId,
@@ -195,22 +190,24 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       final bytes = await _jpeg1080(files[i]);
       debugPrint('[save] parent=$parentCollection/$parentId idx=$i bytes=${bytes.lengthInBytes}');
       if (bytes.lengthInBytes > 950 * 1024) throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
+      final path = 'images/$parentCollection/$parentId/$i.jpg';
+      final ref = _storage.ref().child(path);
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
       final data = {
         'parentCollection': parentCollection,
         'parentId': parentId,
         'index': i,
-        'bytes': Blob(bytes),
+        'path': path,
+        'url': url,
         'mime': 'image/jpeg',
         'createdAt': FieldValue.serverTimestamp(),
       };
       final id = '${parentCollection}_${parentId}_$i';
       try {
-        debugPrint('[save] set images/$id');
-        await col.doc(id).set(data);
-        debugPrint('[save] ok set images/$id');
+        await col.doc(id).set(data, SetOptions(merge: true));
         ok++;
-      } on FirebaseException catch (e) {
-        debugPrint('[save][set][err] code=${e.code} msg=${e.message}');
+      } on FirebaseException {
         final r = await col.add(data);
         debugPrint('[save] ok add images/${r.id}');
         ok++;
@@ -219,18 +216,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     debugPrint('[save] done count=$ok');
   }
 
-  Future<Uint8List?> _fetchFirstImage(String parentCollection, String parentId) async {
+  Future<String?> _fetchFirstImage(String parentCollection, String parentId) async {
     debugPrint('[fetchFirst] $parentCollection/$parentId');
     final byId = '${parentCollection}_${parentId}_0';
     try {
       final doc = await FirebaseFirestore.instance.collection('images').doc(byId).get();
       if (doc.exists) {
         final data = doc.data();
-        if (data != null && data['bytes'] != null) return _unwrapImageField(data['bytes']);
+        if (data != null && data['url'] != null) return data['url'] as String;
       }
-    } catch (e) {
-      debugPrint('[fetchFirst][byId][err] $e');
-    }
+    } catch (_) {}
     try {
       final q = await FirebaseFirestore.instance
           .collection('images')
@@ -239,25 +234,22 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .orderBy('index')
           .limit(1)
           .get();
-      debugPrint('[fetchFirst] docs=${q.docs.length}');
       if (q.docs.isEmpty) return null;
-      return _unwrapImageField(q.docs.first.data()['bytes']);
-    } catch (e) {
-      debugPrint('[fetchFirst][err] $e');
+      return (q.docs.first.data()['url'] as String?);
+    } catch (_) {
       final q2 = await FirebaseFirestore.instance
           .collection('images')
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
           .limit(3)
           .get();
-      debugPrint('[fetchFirst][fallback] docs=${q2.docs.length}');
       if (q2.docs.isEmpty) return null;
       q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
-      return _unwrapImageField(q2.docs.first.data()['bytes']);
+      return (q2.docs.first.data()['url'] as String?);
     }
   }
 
-  Future<List<Uint8List>> _fetchAllImages(String parentCollection, String parentId) async {
+  Future<List<String>> _fetchAllImages(String parentCollection, String parentId) async {
     debugPrint('[fetchAll] $parentCollection/$parentId');
     try {
       final q = await FirebaseFirestore.instance
@@ -267,19 +259,16 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .orderBy('index')
           .limit(3)
           .get();
-      debugPrint('[fetchAll] docs=${q.docs.length}');
-      return q.docs.map((d) => _unwrapImageField(d.data()['bytes'])).toList();
-    } catch (e) {
-      debugPrint('[fetchAll][err] $e');
+      return q.docs.map((d) => (d.data()['url'] as String)).toList();
+    } catch (_) {
       final q2 = await FirebaseFirestore.instance
           .collection('images')
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
           .limit(3)
           .get();
-      debugPrint('[fetchAll][fallback] docs=${q2.docs.length}');
       q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
-      return q2.docs.map((d) => _unwrapImageField(d.data()['bytes'])).toList();
+      return q2.docs.map((d) => (d.data()['url'] as String)).toList();
     }
   }
 
@@ -307,6 +296,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           .where('parentCollection', isEqualTo: parentCollection)
           .where('parentId', isEqualTo: parentId)
           .get();
+      for (final d in imgs.docs) {
+        final data = d.data();
+        final path = (data['path'] ?? '') as String;
+        if (path.isNotEmpty) {
+          try {
+            await _storage.ref().child(path).delete();
+          } catch (e) {
+            debugPrint('[delete][storage] $e');
+          }
+        }
+      }
       final batch = FirebaseFirestore.instance.batch();
       for (final d in imgs.docs) {
         batch.delete(d.reference);
@@ -348,7 +348,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
     try {
-      debugPrint('[createApartment] start');
       final docRef = await FirebaseFirestore.instance.collection('apartments').add({
         'ownedBy': user.uid,
         'ownerFirstName': _ownerFirstName,
@@ -363,7 +362,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'description': description,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      debugPrint('[createApartment] docId=${docRef.id}');
       if (_images.isNotEmpty) {
         await _saveImagesToCollection(parentCollection: 'apartments', parentId: docRef.id, files: _images);
       }
@@ -389,7 +387,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final description = _descriptionController.text.trim();
     setState(() => _isUploading = true);
     try {
-      debugPrint('[createApplication] start');
       final docRef = await FirebaseFirestore.instance.collection('applications').add({
         'ownedBy': user.uid,
         'ownerFirstName': _ownerFirstName,
@@ -398,7 +395,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'description': description,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      debugPrint('[createApplication] docId=${docRef.id}');
       if (_images.isNotEmpty) {
         await _saveImagesToCollection(parentCollection: 'applications', parentId: docRef.id, files: _images);
       }
@@ -715,7 +711,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 }
 
 class _ImagesPager extends StatefulWidget {
-  final Future<List<Uint8List>> future;
+  final Future<List<String>> future;
   final double height;
   const _ImagesPager({required this.future, required this.height});
 
@@ -725,7 +721,7 @@ class _ImagesPager extends StatefulWidget {
 
 class _ImagesPagerState extends State<_ImagesPager> {
   final _controller = PageController();
-  List<Uint8List>? _imgs;
+  List<String>? _imgs;
   int _i = 0;
 
   @override
@@ -771,7 +767,7 @@ class _ImagesPagerState extends State<_ImagesPager> {
             controller: _controller,
             onPageChanged: (v) => setState(() => _i = v),
             itemCount: _imgs!.length,
-            itemBuilder: (_, idx) => Image.memory(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover),
+            itemBuilder: (_, idx) => Image.network(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover),
           ),
           if (_imgs!.length > 1)
             Align(
