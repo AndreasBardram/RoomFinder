@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+
 import 'mere_information.dart';
 import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
@@ -54,6 +55,11 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   static const _trackActive = Colors.black;
   static const _trackInactive = Color(0xFFB0B6BF);
   static const double _controlH = 44;
+
+  // Slightly larger typography for iPhones
+  static const TextStyle _subMuted = TextStyle(fontSize: 14, color: Colors.black54);
+  static const TextStyle _subStrong = TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w600);
+  static const TextStyle _titleStrong = TextStyle(fontSize: 18, fontWeight: FontWeight.w700);
 
   @override
   void initState() {
@@ -153,7 +159,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
         .where('parentCollection', isEqualTo: parentCollection)
         .where('parentId', isEqualTo: parentId)
         .orderBy('index')
-        .limit(3)
+        .limit(6)
         .get();
     return q.docs.map((d) => (d.data()['url'] as String)).toList();
   }
@@ -178,9 +184,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(d['title'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text(d['title'] ?? '', style: _titleStrong),
                       const SizedBox(height: 8),
-                      Text((d['description'] ?? '').toString()),
+                      Text((d['description'] ?? '').toString(), style: _subMuted),
                     ],
                   ),
                 ),
@@ -226,115 +232,157 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             child: Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
           ),
         ),
-        body: Column(
-          children: [
-            _buildFilterCard(context, isSeeker),
-            Expanded(
-              child: _resultsStream == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _resultsStream,
-                      builder: (_, snap) {
-                        if (snap.hasError) return Center(child: Text('Firestore-fejl: ${snap.error}'));
-                        if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                        if (!snap.hasData || snap.data!.docs.isEmpty) {
-                          return Center(child: Text(isSeeker ? 'Ingen værelser.' : 'Ingen ansøgninger.'));
-                        }
-                        final docs = snap.data!.docs;
-                        return ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          itemBuilder: (_, i) {
-                            final doc = docs[i];
-                            final d = doc.data();
-                            if (isSeeker) {
-                              return FutureBuilder<List<String>>(
-                                future: _fetchImageUrls('apartments', doc.id),
-                                builder: (ctx, imgSnap) {
-                                  final images = imgSnap.data ?? const <String>[];
-                                  return GestureDetector(
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
-                                    child: Card(
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      elevation: 2,
-                                      clipBehavior: Clip.antiAlias,
+        body: _resultsStream == null
+            ? const Center(child: CircularProgressIndicator())
+            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _resultsStream,
+                builder: (_, snap) {
+                  final docs = snap.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                  final modeLoading = snap.connectionState == ConnectionState.waiting;
+                  final modeError = snap.hasError;
+                  final showEmpty = !modeLoading && !modeError && docs.isEmpty;
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    itemCount: 1 + (docs.isEmpty ? 1 : docs.length),
+                    separatorBuilder: (_, __) => const SizedBox(height: 16),
+                    itemBuilder: (_, i) {
+                      if (i == 0) return _buildFilterCard(context, isSeeker);
+                      if (modeError) {
+                        return Center(child: Text('Firestore-fejl: ${snap.error}', textAlign: TextAlign.center));
+                      }
+                      if (modeLoading && docs.isEmpty) {
+                        return const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 24), child: CircularProgressIndicator()));
+                      }
+                      if (showEmpty) {
+                        return Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Text(isSeeker ? 'Ingen værelser.' : 'Ingen ansøgninger.')));
+                      }
+                      final doc = docs[i - 1];
+                      final d = doc.data();
+
+                      if (isSeeker) {
+                        // Apartments
+                        return FutureBuilder<List<String>>(
+                          future: _fetchImageUrls('apartments', doc.id),
+                          builder: (ctx, imgSnap) {
+                            final images = imgSnap.data ?? const <String>[];
+                            return GestureDetector(
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d))),
+                              child: Card(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 2,
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-                                          Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                                const SizedBox(height: 6),
-                                                Row(
-                                                  children: [
-                                                    Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                                                    Text('${(d['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                                  ],
+                                          // Title
+                                          Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
+                                          const SizedBox(height: 6),
+
+                                          // Row 1: location (left) + size (right)
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  d['location'] ?? 'Ukendt',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: _subMuted,
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
-                                                    Expanded(child: Text(d['period'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                                                    Text('${(d['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600)),
-                                                  ],
+                                              ),
+                                              Text('${(d['size'] ?? 0).toString()} m²', style: _subMuted),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+
+                                          // Row 2: Periode (left only)
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'Periode: ${d['period'] ?? ''}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: _subMuted,
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Text('Roommates: ${(d['roommates'] ?? 0) as int}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                              ],
-                                            ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+
+                                          // Row 3: Roommates (left) + Price (right)
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'Roommates: ${((d['roommates'] ?? 0) as num).toInt()}',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: _subMuted,
+                                                ),
+                                              ),
+                                              Text('${(d['price'] ?? 0).toString()} DKK', style: _subStrong),
+                                            ],
                                           ),
                                         ],
                                       ),
                                     ),
-                                  );
-                                },
-                              );
-                            } else {
-                              return FutureBuilder<List<String>>(
-                                future: _fetchImageUrls('applications', doc.id),
-                                builder: (ctx, imgSnap) {
-                                  final images = imgSnap.data ?? const <String>[];
-                                  return InkWell(
-                                    onTap: () => _openApplication(doc.id, d),
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Card(
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      elevation: 2,
-                                      clipBehavior: Clip.antiAlias,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-                                          Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                                const SizedBox(height: 6),
-                                                Text((d['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-                            }
+                                  ],
+                                ),
+                              ),
+                            );
                           },
-                          separatorBuilder: (_, __) => const SizedBox(height: 16),
-                          itemCount: docs.length,
                         );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                      } else {
+                        // Applications
+                        return FutureBuilder<List<String>>(
+                          future: _fetchImageUrls('applications', doc.id),
+                          builder: (ctx, imgSnap) {
+                            final images = imgSnap.data ?? const <String>[];
+                            return InkWell(
+                              onTap: () => _openApplication(doc.id, d),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Card(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 2,
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            (d['description'] ?? '').toString(),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: _subMuted,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                    },
+                  );
+                },
+              ),
       ),
     );
   }
@@ -354,7 +402,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
         : const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.all(16),
+      margin: EdgeInsets.zero, // sits inside the scrolling list
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
@@ -471,42 +519,49 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          SizedBox(
-                            height: _controlH,
-                            child: TextButton(
-                              style: ButtonStyle(
-                                minimumSize: MaterialStateProperty.all(const Size(0, _controlH)),
-                                padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
-                                foregroundColor: MaterialStateProperty.all(_labelColor),
-                              ),
-                              onPressed: () => setState(() {
-                                _locCtl.clear();
-                                _location = null;
-                                _period = null;
-                                _maxAgeDays = null;
-                                _price = const RangeValues(_priceMin, _priceMax);
-                                _size = const RangeValues(_sizeMin, _sizeMax);
-                                _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
-                                _sort = 'Nyeste først';
-                              }),
-                              child: const Text('Nulstil filtre'),
-                            ),
-                          ),
-                          const Spacer(),
-                          SizedBox(
-                            width: 200,
-                            height: _controlH,
-                            child: CustomButtonContainer(
-                              child: ElevatedButton(
-                                style: customElevatedButtonStyle().copyWith(
+                          // Nulstil (same size as Opdater, subtle bg)
+                          Expanded(
+                            child: SizedBox(
+                              height: _controlH,
+                              child: TextButton(
+                                style: ButtonStyle(
+                                  backgroundColor: MaterialStateProperty.resolveWith((_) => const Color(0xFFEFF2F6)),
                                   minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
-                                  padding: MaterialStateProperty.all(EdgeInsets.zero),
-                                  backgroundColor: MaterialStateProperty.all(_btnBg),
-                                  foregroundColor: MaterialStateProperty.all(Colors.white),
+                                  padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
+                                  foregroundColor: MaterialStateProperty.all(_labelColor),
                                   shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                                 ),
-                                onPressed: _applyFilters,
-                                child: const Text('Opdater'),
+                                onPressed: () => setState(() {
+                                  _locCtl.clear();
+                                  _location = null;
+                                  _period = null;
+                                  _maxAgeDays = null;
+                                  _price = const RangeValues(_priceMin, _priceMax);
+                                  _size = const RangeValues(_sizeMin, _sizeMax);
+                                  _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
+                                  _sort = 'Nyeste først';
+                                }),
+                                child: const Text('Nulstil filtre'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Opdater
+                          Expanded(
+                            child: SizedBox(
+                              height: _controlH,
+                              child: CustomButtonContainer(
+                                child: ElevatedButton(
+                                  style: customElevatedButtonStyle().copyWith(
+                                    minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
+                                    padding: MaterialStateProperty.all(EdgeInsets.zero),
+                                    backgroundColor: MaterialStateProperty.all(_btnBg),
+                                    foregroundColor: MaterialStateProperty.all(Colors.white),
+                                    shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                                  ),
+                                  onPressed: _applyFilters,
+                                  child: const Text('Opdater'),
+                                ),
                               ),
                             ),
                           ),
