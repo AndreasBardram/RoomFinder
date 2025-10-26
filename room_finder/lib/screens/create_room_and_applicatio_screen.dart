@@ -11,9 +11,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
 import '../components/postcode_enter_field.dart';
+import '../components/no_transition.dart';
 import 'settings_screen.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
+import 'more_information_apartment.dart';
+import 'more_information_application.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});
@@ -26,7 +29,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   static const int _maxTitle = 100;
   static const int _maxDesc = 1000;
   static const int _minDesc = 50;
-
   static const int _targetMaxSide = 1440;
   static const int _jpegQuality = 85;
   static const int _maxUploadBytes = 4 * 1024 * 1024;
@@ -40,9 +42,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _budgetController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
-  final FirebaseStorage _storage = FirebaseStorage.instanceFor(
-    bucket: 'gs://roomfinder-cec5a.firebasestorage.app',
-  );
+  final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://roomfinder-cec5a.firebasestorage.app');
 
   List<XFile> _images = [];
   bool _isUploading = false;
@@ -52,8 +52,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   String _ownerFirstName = '';
   String _ownerLastName = '';
 
-  bool _unlimitedPeriod = false;
-  int _periodMonths = 6;
+  int _periodMonths = 0;
   int _roommates = 2;
 
   bool get _isSeeker => (_profileType ?? '').toLowerCase() != 'landlord';
@@ -112,7 +111,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return false;
   }
 
-  String _periodString() => _unlimitedPeriod ? 'ubegrænset' : '$_periodMonths måneder';
+  String _periodString() => _periodMonths == 0 ? 'Ubegrænset' : '$_periodMonths måneder';
 
   int? _parseInt(String text) {
     if (text.trim().isEmpty) return null;
@@ -127,29 +126,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final price = _parseInt(_priceController.text);
     final size = _parseInt(_sizeController.text);
     final desc = _descriptionController.text.trim();
-    if (title.isEmpty || title.length > _maxTitle) {
-      return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
-    }
+    if (title.isEmpty || title.length > _maxTitle) return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
     if (loc.isEmpty) return _fail('Vælg postnummer.');
     if (addr.isEmpty) return _fail('Adresse skal udfyldes.');
-    if (price == null || price < 0 || price > 100000) {
-      return _fail('Pris: 0-100 000 DKK.');
-    }
-    if (size == null || size < 1 || size > 1000) {
-      return _fail('Størrelse: 1-1 000 m².');
-    }
-    if (!_unlimitedPeriod && (_periodMonths < 1 || _periodMonths > 100)) {
-      return _fail('Periode: 1-100 måneder eller ubegrænset.');
-    }
-    if (_roommates < 1 || _roommates > 10) {
-      return _fail('Roommates: 1-10.');
-    }
-    if (desc.isEmpty || desc.length > _maxDesc) {
-      return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
-    }
-    if (desc.length < _minDesc) {
-      return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
-    }
+    if (price == null || price < 0 || price > 100000) return _fail('Pris: 0-100 000 DKK.');
+    if (size == null || size < 1 || size > 1000) return _fail('Størrelse: 1-1 000 m².');
+    if (_periodMonths != 0 && (_periodMonths < 1 || _periodMonths > 100)) return _fail('Periode: 1-100 måneder eller ubegrænset.');
+    if (_roommates < 1 || _roommates > 10) return _fail('Roommates: 1-10.');
+    if (desc.isEmpty || desc.length > _maxDesc) return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
+    if (desc.length < _minDesc) return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
     setState(() => _errorMsg = null);
     return true;
   }
@@ -158,18 +143,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final title = _titleController.text.trim();
     final desc = _descriptionController.text.trim();
     final budget = _parseInt(_budgetController.text);
-    if (title.isEmpty || title.length > _maxTitle) {
-      return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
-    }
-    if (budget == null || budget < 0 || budget > 100000) {
-      return _fail('Budget: 0-100 000 DKK.');
-    }
-    if (desc.isEmpty || desc.length > _maxDesc) {
-      return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
-    }
-    if (desc.length < _minDesc) {
-      return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
-    }
+    if (title.isEmpty || title.length > _maxTitle) return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
+    if (budget == null || budget < 0 || budget > 100000) return _fail('Budget: 0-100 000 DKK.');
+    if (desc.isEmpty || desc.length > _maxDesc) return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
+    if (desc.length < _minDesc) return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
     setState(() => _errorMsg = null);
     return true;
   }
@@ -261,10 +238,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final src = await f.readAsBytes();
     final decoded = img.decodeImage(src);
     if (decoded == null) throw Exception('Kunne ikke læse billedet');
-
     int tw = decoded.width, th = decoded.height;
     final wide = decoded.width >= decoded.height;
-
     if (wide) {
       if (decoded.width > _targetMaxSide) {
         tw = _targetMaxSide;
@@ -276,24 +251,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         tw = (decoded.width * _targetMaxSide / decoded.height).round();
       }
     }
-
-    final resized = (tw != decoded.width || th != decoded.height)
-        ? img.copyResize(decoded, width: tw, height: th, interpolation: img.Interpolation.cubic)
-        : decoded;
-
+    final resized = (tw != decoded.width || th != decoded.height) ? img.copyResize(decoded, width: tw, height: th, interpolation: img.Interpolation.cubic) : decoded;
     final jpg = img.encodeJpg(resized, quality: _jpegQuality);
     final bytes = Uint8List.fromList(jpg);
-    if (bytes.lengthInBytes > _maxUploadBytes) {
-      throw Exception('Et billede er for stort (> 4 MB). Prøv igen.');
-    }
+    if (bytes.lengthInBytes > _maxUploadBytes) throw Exception('Et billede er for stort (> 4 MB). Prøv igen.');
     return bytes;
   }
 
-  Future<void> _saveImagesToCollection({
-    required String parentCollection,
-    required String parentId,
-    required List<XFile> files,
-  }) async {
+  Future<void> _saveImagesToCollection({required String parentCollection, required String parentId, required List<XFile> files}) async {
     final col = FirebaseFirestore.instance.collection('images');
     for (var i = 0; i < files.length && i < _maxImages; i++) {
       final bytes = await _jpegResized(files[i]);
@@ -301,7 +266,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       final ref = _storage.ref().child(path);
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final url = await ref.getDownloadURL();
-
       final data = {
         'parentCollection': parentCollection,
         'parentId': parentId,
@@ -339,10 +303,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() => _isUploading = true);
     try {
       final col = FirebaseFirestore.instance.collection('images');
-      final imgs = await col
-          .where('parentCollection', isEqualTo: parentCollection)
-          .where('parentId', isEqualTo: parentId)
-          .get();
+      final imgs = await col.where('parentCollection', isEqualTo: parentCollection).where('parentId', isEqualTo: parentId).get();
       for (final d in imgs.docs) {
         final data = d.data();
         final path = (data['path'] ?? '') as String;
@@ -460,7 +421,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _descriptionController.clear();
     _budgetController.clear();
     _images = [];
-    _unlimitedPeriod = false;
     _periodMonths = 6;
     _roommates = 2;
     setState(() {});
@@ -476,7 +436,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                onPressed: () => pushNoAnim(context, const LoginScreen()),
                 child: const Text('Log ind'),
               ),
             ),
@@ -487,7 +447,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             child: CustomButtonContainer(
               child: ElevatedButton(
                 style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
+                onPressed: () => pushNoAnim(context, const CreateAccountScreen()),
                 child: const Text('Opret profil'),
               ),
             ),
@@ -497,10 +457,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      );
+  Widget _label(String t) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)));
 
   Widget _titleLabelWithCounter() => Padding(
         padding: const EdgeInsets.only(bottom: 6),
@@ -553,33 +510,30 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label('Periode'),
+        _label('Udlejningsperiode (måneder)'),
         Container(
           decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.all(12),
-          child: Column(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
             children: [
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment<bool>(value: false, label: Text('Begrænset')),
-                  ButtonSegment<bool>(value: true, label: Text('Ubegrænset')),
-                ],
-                selected: {_unlimitedPeriod},
-                onSelectionChanged: (s) => setState(() => _unlimitedPeriod = s.first),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: _periodMonths > 0 ? () => setState(() => _periodMonths--) : null,
+                icon: const Icon(Icons.remove),
               ),
-              if (!_unlimitedPeriod)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(
-                    children: [
-                      const Text('Måneder:'),
-                      const SizedBox(width: 12),
-                      IconButton(onPressed: _periodMonths > 1 ? () => setState(() => _periodMonths--) : null, icon: const Icon(Icons.remove)),
-                      Text('$_periodMonths', style: const TextStyle(fontWeight: FontWeight.w700)),
-                      IconButton(onPressed: _periodMonths < 100 ? () => setState(() => _periodMonths++) : null, icon: const Icon(Icons.add)),
-                    ],
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _periodMonths == 0 ? 'Ubegrænset' : '$_periodMonths',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: _periodMonths < 100 ? () => setState(() => _periodMonths++) : null,
+                icon: const Icon(Icons.add),
+              ),
             ],
           ),
         ),
@@ -609,11 +563,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 onPressed: value > min ? () => onChanged(value - 1) : null,
                 icon: const Icon(Icons.remove),
               ),
-              Expanded(
-                child: Center(
-                  child: Text('$value', style: const TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
+              Expanded(child: Center(child: Text('$value', style: const TextStyle(fontWeight: FontWeight.w700)))),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 onPressed: value < max ? () => onChanged(value + 1) : null,
@@ -646,9 +596,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const Icon(FluentIcons.arrow_upload_24_regular, size: 28, color: _icon),
                 const SizedBox(height: 8),
                 Text(
-                  has
-                      ? '${_images.length} billede(r) valgt – tryk for at ændre'
-                      : 'Tryk for at tilføje op til $_maxImages billeder',
+                  has ? '${_images.length} billede(r) valgt – tryk for at ændre' : 'Tryk for at tilføje op til $_maxImages billeder',
                   style: const TextStyle(color: Colors.black87),
                   textAlign: TextAlign.center,
                 ),
@@ -665,12 +613,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _titleLabelWithCounter(),
-        _textField(
-          _titleController,
-          hint: 'Skriv en titel',
-          maxLength: _maxTitle,
-          hideCounter: true,
-        ),
+        _textField(_titleController, hint: 'Skriv en titel', maxLength: _maxTitle, hideCounter: true),
       ],
     );
   }
@@ -685,21 +628,10 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         _titleField(),
         const SizedBox(height: 16),
         _label('Budget (DKK)'),
-        _textField(
-          _budgetController,
-          hint: 'fx 6000',
-          type: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
+        _textField(_budgetController, hint: 'fx 6000', type: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: 16),
         _label('Beskrivelse'),
-        _textField(
-          _descriptionController,
-          hint: 'Skriv en beskrivelse',
-          maxLines: 6,
-          maxLength: _maxDesc,
-          hideCounter: true,
-        ),
+        _textField(_descriptionController, hint: 'Skriv en beskrivelse', maxLines: 6, maxLength: _maxDesc, hideCounter: true),
         const SizedBox(height: 16),
         _previewButton(isApplication: true),
         const SizedBox(height: 16),
@@ -739,39 +671,17 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         _textField(_addressController, hint: 'fx Nørrebrogade 1', type: TextInputType.streetAddress),
         const SizedBox(height: 16),
         _label('Pris (DKK)'),
-        _textField(
-          _priceController,
-          hint: 'fx 6000',
-          type: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
+        _textField(_priceController, hint: 'fx 6000', type: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: 16),
         _label('Størrelse (m²)'),
-        _textField(
-          _sizeController,
-          hint: 'fx 18',
-          type: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
+        _textField(_sizeController, hint: 'fx 18', type: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
         const SizedBox(height: 16),
         _periodPicker(),
         const SizedBox(height: 16),
-        _stepper(
-          label: 'Antal roommates',
-          value: _roommates,
-          min: 1,
-          max: 10,
-          onChanged: (v) => setState(() => _roommates = v),
-        ),
+        _stepper(label: 'Antal roommates', value: _roommates, min: 1, max: 10, onChanged: (v) => setState(() => _roommates = v)),
         const SizedBox(height: 16),
         _label('Beskrivelse'),
-        _textField(
-          _descriptionController,
-          hint: 'Skriv en beskrivelse',
-          maxLines: 5,
-          maxLength: _maxDesc,
-          hideCounter: true,
-        ),
+        _textField(_descriptionController, hint: 'Skriv en beskrivelse', maxLines: 5, maxLength: _maxDesc, hideCounter: true),
         const SizedBox(height: 16),
         _previewButton(isApplication: false),
         const SizedBox(height: 16),
@@ -835,9 +745,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 children: [
                   AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: bytes == null
-                        ? Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image, color: Colors.white)))
-                        : Image.memory(bytes, fit: BoxFit.cover),
+                    child: bytes == null ? Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image, color: Colors.white))) : Image.memory(bytes, fit: BoxFit.cover),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -872,10 +780,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Luk')),
-            ),
+            Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Luk'))),
           ],
         ),
       ),
@@ -904,82 +809,91 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
   }
 
-  Widget _itemCard({
-    required String collection,
-    required String parentId,
-    required Map<String, dynamic> data,
-    required double imageHeight,
-  }) {
+  Widget _itemCard({required String collection, required String parentId, required Map<String, dynamic> data, required double imageHeight}) {
     final title = (data['title'] ?? '').toString();
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              _ImagesPager(future: _fetchAllImages(collection, parentId), height: imageHeight),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Material(
-                  color: Colors.white,
-                  elevation: 2,
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    icon: const Icon(FluentIcons.delete_24_regular, color: Color(0xFFDC2626)),
-                    onPressed: () async {
-                      if (await _confirmDelete(title)) {
-                        await _deleteListing(collection, parentId);
-                        setState(() {});
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          if (collection == 'apartments') ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      (data['location'] ?? 'Ukendt').toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+
+    void _openDetails() {
+      if (collection == 'apartments') {
+        pushNoAnim(
+          context,
+          MoreInformationScreen(data: data, parentCollection: 'apartments', parentId: parentId),
+        );
+      } else {
+        pushNoAnim(
+          context,
+          MoreInformationApplicationScreen(data: data, parentCollection: 'applications', parentId: parentId),
+        );
+      }
+    }
+
+    return InkWell(
+      onTap: _openDetails,
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                _ImagesPager(future: _fetchAllImages(collection, parentId), height: imageHeight),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 2,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(FluentIcons.delete_24_regular, color: Color(0xFFDC2626)),
+                      onPressed: () async {
+                        if (await _confirmDelete(title)) {
+                          await _deleteListing(collection, parentId);
+                          setState(() {});
+                        }
+                      },
                     ),
                   ),
-                  Text('${(data['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                ],
-              ),
+                ),
+              ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text((data['period'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                  ),
-                  Text('${(data['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w700)),
-                ],
+              padding: const EdgeInsets.all(12),
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            if (collection == 'apartments') ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text((data['location'] ?? 'Ukendt').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    ),
+                    Text('${(data['size'] ?? 0).toString()} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
               ),
-            ),
-          ] else ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Text((data['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text((data['period'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    ),
+                    Text('${(data['price'] ?? 0).toString()} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Text((data['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1104,7 +1018,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           actions: [
             IconButton(
               icon: const Icon(FluentIcons.settings_24_regular),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              onPressed: () => pushNoAnim(context, const SettingsScreen()),
             ),
           ],
           bottom: const PreferredSize(
@@ -1274,19 +1188,22 @@ class _DashedRRectPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
 
-    final metrics = path.computeMetrics();
-    for (final metric in metrics) {
+    for (final metric in path.computeMetrics()) {
       double drawn = 0;
       while (drawn < metric.length) {
-        final next = (drawn + dash).clamp(0, metric.length).toDouble();
-        final extract = metric.extractPath(drawn, next);
+        final end = (drawn + dash).clamp(0, metric.length).toDouble();
+        final extract = metric.extractPath(drawn, end);
         canvas.drawPath(extract, paint);
-        drawn = next + gap;
+        drawn = end + gap;
       }
     }
   }
 
   @override
   bool shouldRepaint(covariant _DashedRRectPainter old) =>
-      old.color != color || old.radius != radius || old.dash != dash || old.gap != gap || old.strokeWidth != strokeWidth;
+      old.color != color ||
+      old.radius != radius ||
+      old.dash != dash ||
+      old.gap != gap ||
+      old.strokeWidth != strokeWidth;
 }
