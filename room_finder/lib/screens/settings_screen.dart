@@ -7,6 +7,8 @@ import 'opret_profil_screen.dart';
 import 'welcome_screen.dart';
 import '../utils/navigation.dart';
 
+const _hairline = Color(0xFFF1F5F9);
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -24,52 +26,70 @@ class SettingsScreen extends StatelessWidget {
     final loggedIn = FirebaseAuth.instance.currentUser != null;
     final navColor = Colors.grey[600];
 
-    final items = <_SettingItem>[
+    final accountItems = <_SettingItem>[
       _SettingItem(
         label: loggedIn ? 'Skift bruger' : 'Log ind',
+        icon: FluentIcons.person_24_regular,
         onTap: () => Navigator.push(context, _noAnimRoute(const LoginScreen())),
       ),
       _SettingItem(
         label: 'Opret profil',
+        icon: FluentIcons.add_24_regular,
         onTap: () => Navigator.push(context, _noAnimRoute(const CreateAccountScreen())),
       ),
       if (loggedIn)
         _SettingItem(
           label: 'Log ud',
+          icon: FluentIcons.arrow_exit_20_regular,
           onTap: () => _logout(context),
+          destructive: true,
+          chevron: false,
         ),
+    ];
+
+    final legalItems = <_SettingItem>[
       _SettingItem(
-        label: 'Privacy Policy',
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Privacy Policy'))),
+        label: 'Privatlivspolitik',
+        icon: FluentIcons.shield_24_regular,
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Privatlivspolitik')),
+        ),
       ),
       _SettingItem(
-        label: 'Terms of Use',
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Terms of Use'))),
+        label: 'Vilkår for brug',
+        icon: FluentIcons.document_24_regular,
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vilkår for brug')),
+        ),
       ),
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF7F7F7),
-        elevation: 0,
-        centerTitle: true,
         automaticallyImplyLeading: false,
-        titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.black),
-        title: const Text('Settings'),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.black,
+        ),
+        title: const Text('Indstillinger'),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1, thickness: 1, color: Color(0xFFEAEAEA)),
+          child: Divider(height: 1, thickness: 1, color: _hairline),
         ),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return _tile(context, item.label, item.onTap);
-        },
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildCard(accountItems),
+          const SizedBox(height: 16),
+          _buildCard(legalItems),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -96,22 +116,42 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _tile(BuildContext context, String label, VoidCallback onTap) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          alignment: Alignment.center,
-          child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+  Widget _buildCard(List<_SettingItem> items) {
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            _settingsRow(items[i]),
+            if (i != items.length - 1)
+              const Divider(height: 1, color: _hairline),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsRow(_SettingItem item) {
+    final baseStyle = TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      color: item.destructive ? Colors.red[600] : Colors.black,
+    );
+
+    return InkWell(
+      onTap: item.onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(item.icon, size: 18, color: item.destructive ? Colors.red[600] : Colors.grey[700]),
+            const SizedBox(width: 12),
+            Expanded(child: Text(item.label, style: baseStyle)),
+            if (item.chevron)
+              const Icon(FluentIcons.chevron_right_24_regular, size: 18, color: Colors.black54),
+          ],
         ),
       ),
     );
@@ -120,8 +160,17 @@ class SettingsScreen extends StatelessWidget {
 
 class _SettingItem {
   final String label;
+  final IconData icon;
   final VoidCallback onTap;
-  _SettingItem({required this.label, required this.onTap});
+  final bool destructive;
+  final bool chevron;
+  _SettingItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.destructive = false,
+    this.chevron = true,
+  });
 }
 
 PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
