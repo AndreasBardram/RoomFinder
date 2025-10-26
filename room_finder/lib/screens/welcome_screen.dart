@@ -72,7 +72,7 @@ class WelcomeScreen extends StatelessWidget {
                     child: const Text('Opret profil'),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: TextButton(
