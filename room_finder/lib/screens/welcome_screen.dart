@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/navigation.dart';
+import '../components/no_transition.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
 
@@ -58,10 +59,7 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: blackBtn,
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    ),
+                    onPressed: () => pushNoAnim(context, const LoginScreen()),
                     child: const Text('Log ind'),
                   ),
                 ),
@@ -70,10 +68,7 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: blackBtn,
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
-                    ),
+                    onPressed: () => pushNoAnim(context, const CreateAccountScreen()),
                     child: const Text('Opret profil'),
                   ),
                 ),
@@ -82,11 +77,9 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   child: TextButton(
                     style: pillBtn,
-                    onPressed: () => Navigator.pushReplacement(
+                    onPressed: () => pushReplacementNoAnim(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const MainScreen(initialIndex: 0),
-                      ),
+                      const MainScreen(initialIndex: 0),
                     ),
                     child: const Text('Fortsæt uden at logge ind'),
                   ),

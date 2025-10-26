@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:intl/intl.dart';
+
 import '../utils/navigation.dart';
+import '../components/no_transition.dart';
+import 'welcome_screen.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -87,7 +90,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         ),
       );
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 0)));
+      await pushReplacementNoAnim(context, const MainScreen(initialIndex: 0));
     } on FirebaseAuthException catch (e) {
       _showMessage('Fejl: ${e.message}');
     } catch (_) {
@@ -190,8 +193,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hvordan vil du bruge RoomMatch?',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Hvordan vil du bruge RoomMatch?', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 16),
         _optionTile(
           value: 'seeker',
@@ -334,34 +336,47 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     );
   }
 
+  Future<bool> _handleBack() async {
+    if (_showForm) {
+      setState(() => _showForm = false);
+      return false;
+    }
+    if (!mounted) return false;
+    await pushAndRemoveAllNoAnim(context, const WelcomeScreen());
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
+    return WillPopScope(
+      onWillPop: _handleBack,
+      child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleBack,
+          ),
         ),
-      ),
-      body: SafeArea(
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (c, a) => FadeTransition(opacity: a, child: c),
-                child: Column(
-                  key: ValueKey(_showForm),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!_showForm) _rolePicker(),
-                    if (_showForm) _form(),
-                  ],
+        body: SafeArea(
+          child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: AnimatedSwitcher(
+                  duration: Duration.zero,
+                  transitionBuilder: (c, _) => c,
+                  child: Column(
+                    key: ValueKey(_showForm),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_showForm) _rolePicker(),
+                      if (_showForm) _form(),
+                    ],
+                  ),
                 ),
               ),
             ),
