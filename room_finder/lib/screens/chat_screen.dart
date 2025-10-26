@@ -6,12 +6,14 @@ import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../components/custom_styles.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
 import 'more_information_apartment.dart';
 import 'more_information_application.dart';
+import 'settings_screen.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, this.room});
@@ -21,18 +23,24 @@ class ChatScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = FirebaseAuth.instance.currentUser;
     if (auth == null) {
-      return Scaffold(appBar: _appBar('Chat'), body: _loggedOut(context));
+      return Scaffold(appBar: _appBar(context, 'Chat'), body: _loggedOut(context));
     }
     return room == null ? _RoomsPage(currentUser: auth) : _RoomPage(room: room!, currentUser: auth);
   }
 
-  PreferredSizeWidget _appBar(String title) => AppBar(
-        backgroundColor: Colors.white,
+  PreferredSizeWidget _appBar(BuildContext context, String title) => AppBar(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
         iconTheme: const IconThemeData(color: Colors.black),
         title: Text(title),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.settings_24_regular),
+            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+          ),
+        ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
           child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
@@ -55,7 +63,7 @@ class ChatScreen extends StatelessWidget {
         child: CustomButtonContainer(
           child: ElevatedButton(
             style: customElevatedButtonStyle(),
-            onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => page)),
+            onPressed: () => Navigator.push(ctx, _noAnimRoute(page)),
             child: Text(label),
           ),
         ),
@@ -72,14 +80,20 @@ class _RoomsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
         iconTheme: const IconThemeData(color: Colors.black),
         title: const Text('Chat'),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.settings_24_regular),
+            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+          ),
+        ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
           child: Divider(height: 1, thickness: 1, color: _hairline),
@@ -109,7 +123,7 @@ class _RoomsPage extends StatelessWidget {
                   ? DateFormat.Hm('da').format(DateTime.fromMillisecondsSinceEpoch(last.createdAt!))
                   : '';
               return InkWell(
-                onTap: () => Navigator.push(_, MaterialPageRoute(builder: (_) => ChatScreen(room: room))),
+                onTap: () => Navigator.push(_, _noAnimRoute(ChatScreen(room: room))),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
@@ -173,12 +187,12 @@ class _RoomsPage extends StatelessWidget {
   static Color _colorFromString(String s) {
     final h = s.hashCode;
     final palette = [
-      const Color(0xFF7C6CF4),
-      const Color(0xFF6366F1),
-      const Color(0xFF8B5CF6),
-      const Color(0xFF10B981),
-      const Color(0xFFF59E0B),
-      const Color(0xFFEF4444),
+      Color(0xFF7C6CF4),
+      Color(0xFF6366F1),
+      Color(0xFF8B5CF6),
+      Color(0xFF10B981),
+      Color(0xFFF59E0B),
+      Color(0xFFEF4444),
     ];
     return palette[h.abs() % palette.length];
   }
@@ -229,9 +243,9 @@ class _RoomPageState extends State<_RoomPage> {
     if (!mounted || !snap.exists) return;
     final d = snap.data()!;
     if (collection == 'apartments') {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d, parentCollection: collection, parentId: id)));
+      Navigator.push(context, _noAnimRoute(MoreInformationScreen(data: d, parentCollection: collection, parentId: id)));
     } else {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationApplicationScreen(data: d, parentCollection: collection, parentId: id)));
+      Navigator.push(context, _noAnimRoute(MoreInformationApplicationScreen(data: d, parentCollection: collection, parentId: id)));
     }
   }
 
@@ -239,14 +253,20 @@ class _RoomPageState extends State<_RoomPage> {
   Widget build(BuildContext context) {
     const hairline = Color(0xFFF1F5F9);
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
         iconTheme: const IconThemeData(color: Colors.black),
         title: Text(widget.room.name ?? 'Chat'),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.settings_24_regular),
+            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+          ),
+        ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
           child: Divider(height: 1, thickness: 1, color: hairline),
@@ -322,3 +342,10 @@ class _RoomPageState extends State<_RoomPage> {
     );
   }
 }
+
+PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      transitionsBuilder: (_, __, ___, child) => child,
+    );
