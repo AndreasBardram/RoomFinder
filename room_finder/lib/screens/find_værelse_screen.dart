@@ -25,15 +25,16 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   String? _period;
   int? _maxAgeDays;
 
-  static const double _priceMin = 0, _priceMax = 10000;
+  // Shared money range (used as "Pris" for apartments, "Budget" for applications)
+  static const double _moneyMin = 0, _moneyMax = 10000;
   static const double _sizeMin = 0, _sizeMax = 200;
   static const int _matesMin = 0, _matesMax = 10;
 
-  RangeValues _price = const RangeValues(_priceMin, _priceMax);
+  // Reuse this for price or budget depending on mode
+  RangeValues _money = const RangeValues(_moneyMin, _moneyMax);
   RangeValues _size = const RangeValues(_sizeMin, _sizeMax);
   RangeValues _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
-  static const _sortChoices = ['Nyeste først', 'Ældst først', 'Pris ↓', 'Pris ↑', 'Størrelse ↓', 'Størrelse ↑'];
   static const _periods = ['Ubegrænset', '1-3 måneder', '3-6 måneder', '6-12 måneder'];
   static const Map<int, String> _ageChoices = {1: 'Seneste 24 timer', 3: 'Seneste 3 dage', 7: 'Seneste uge', 30: 'Seneste måned'};
 
@@ -41,7 +42,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   String? _appliedLocation;
   String? _appliedPeriod;
   int? _appliedMaxAgeDays;
-  RangeValues _appliedPrice = const RangeValues(_priceMin, _priceMax);
+  RangeValues _appliedMoney = const RangeValues(_moneyMin, _moneyMax);
   RangeValues _appliedSize = const RangeValues(_sizeMin, _sizeMax);
   RangeValues _appliedMates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
 
@@ -105,50 +106,81 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
 
   bool get _isSeeker => (_profileType ?? '').toLowerCase() != 'landlord';
 
+  // Sort choices differ by mode:
+  List<String> get _sortChoices => _isSeeker
+      ? const ['Nyeste først', 'Ældst først', 'Pris ↓', 'Pris ↑', 'Størrelse ↓', 'Størrelse ↑']
+      : const ['Nyeste først', 'Ældst først', 'Budget ↓', 'Budget ↑'];
+
   Query<Map<String, dynamic>> _baseQuery() {
+    // seekers browse apartments; landlords browse applications
     final coll = _isSeeker ? 'apartments' : 'applications';
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(coll);
-    switch (_appliedSort) {
-      case 'Pris ↓':
-        q = q.orderBy('price', descending: true);
-        break;
-      case 'Pris ↑':
-        q = q.orderBy('price');
-        break;
-      case 'Størrelse ↓':
-        q = q.orderBy('size', descending: true);
-        break;
-      case 'Størrelse ↑':
-        q = q.orderBy('size');
-        break;
-      case 'Ældst først':
-        q = q.orderBy('createdAt');
-        break;
-      default:
-        q = q.orderBy('createdAt', descending: true);
+
+    if (_isSeeker) {
+      switch (_appliedSort) {
+        case 'Pris ↓':
+          q = q.orderBy('price', descending: true);
+          break;
+        case 'Pris ↑':
+          q = q.orderBy('price');
+          break;
+        case 'Størrelse ↓':
+          q = q.orderBy('size', descending: true);
+          break;
+        case 'Størrelse ↑':
+          q = q.orderBy('size');
+          break;
+        case 'Ældst først':
+          q = q.orderBy('createdAt');
+          break;
+        default:
+          q = q.orderBy('createdAt', descending: true);
+      }
+    } else {
+      // landlord looking at applications: only budget & date sorts
+      switch (_appliedSort) {
+        case 'Budget ↓':
+          q = q.orderBy('budget', descending: true);
+          break;
+        case 'Budget ↑':
+          q = q.orderBy('budget');
+          break;
+        case 'Ældst først':
+          q = q.orderBy('createdAt');
+          break;
+        default:
+          q = q.orderBy('createdAt', descending: true);
+      }
     }
+
     return q;
   }
 
   bool _passesClientFilters(Map<String, dynamic> d) {
-    if (_appliedLocation != null && (d['location'] ?? '') != _appliedLocation) return false;
-    if (_appliedPeriod != null && (d['period'] ?? '') != _appliedPeriod) return false;
-    if (_appliedMaxAgeDays != null) {
-      final ts = (d['createdAt'] as Timestamp?)?.toDate();
-      if (ts == null || ts.isBefore(DateTime.now().subtract(Duration(days: _appliedMaxAgeDays!)))) {
-        return false;
-      }
-    }
     if (_isSeeker) {
+      // apartments: all filters
+      if (_appliedLocation != null && (d['location'] ?? '') != _appliedLocation) return false;
+      if (_appliedPeriod != null && (d['period'] ?? '') != _appliedPeriod) return false;
+      if (_appliedMaxAgeDays != null) {
+        final ts = (d['createdAt'] as Timestamp?)?.toDate();
+        if (ts == null || ts.isBefore(DateTime.now().subtract(Duration(days: _appliedMaxAgeDays!)))) {
+          return false;
+        }
+      }
       final p = ((d['price'] ?? 0) as num).toDouble();
       final s = ((d['size'] ?? 0) as num).toDouble();
       final m = ((d['roommates'] ?? 0) as num).toDouble();
-      final priceOk = p >= _appliedPrice.start && p <= _appliedPrice.end;
+      final moneyOk = p >= _appliedMoney.start && p <= _appliedMoney.end;
       final sizeOk = s >= _appliedSize.start && s <= _appliedSize.end;
       final matesOk = m >= _appliedMates.start && m <= _appliedMates.end;
-      if (!priceOk || !sizeOk || !matesOk) return false;
+      if (!moneyOk || !sizeOk || !matesOk) return false;
+      return true;
+    } else {
+      // applications: only budget range filter
+      final b = ((d['budget'] ?? 0) as num).toDouble();
+      final budgetOk = b >= _appliedMoney.start && b <= _appliedMoney.end;
+      return budgetOk;
     }
-    return true;
   }
 
   Future<void> _reload() async {
@@ -158,7 +190,9 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
       _hasMore = true;
       _docs = [];
       _lastDoc = null;
-      // Keep _imageFutureCache so already seen images remain cached between reloads
+      // keep image cache
+      // Ensure current sort is valid for current mode
+      if (!_sortChoices.contains(_sort)) _sort = 'Nyeste først';
     });
     await _fetchNext();
     if (mounted) setState(() => _initialLoading = false);
@@ -197,12 +231,24 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
 
   void _applyFilters() {
     _appliedSort = _sort;
-    _appliedLocation = _location;
-    _appliedPeriod = _period;
-    _appliedMaxAgeDays = _maxAgeDays;
-    _appliedPrice = _price;
-    _appliedSize = _size;
-    _appliedMates = _mates;
+
+    if (_isSeeker) {
+      _appliedLocation = _location;
+      _appliedPeriod = _period;
+      _appliedMaxAgeDays = _maxAgeDays;
+      _appliedMoney = _money; // price
+      _appliedSize = _size;
+      _appliedMates = _mates;
+    } else {
+      // applications: only budget
+      _appliedMoney = _money; // budget
+      // Clear other applied filters to avoid confusion
+      _appliedLocation = null;
+      _appliedPeriod = null;
+      _appliedMaxAgeDays = null;
+      _appliedSize = const RangeValues(_sizeMin, _sizeMax);
+      _appliedMates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
+    }
     _reload();
   }
 
@@ -225,36 +271,10 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
     return urls;
   }
 
-  // Return a cached future for images to avoid refetching on rebuild (e.g., when toggling filters)
+  // Return a cached future for images to avoid refetching on rebuild
   Future<List<String>> _imageFutureFor(String parentCollection, String parentId) {
     final key = '$parentCollection/$parentId';
     return _imageFutureCache.putIfAbsent(key, () => _fetchAndPrefetchImages(parentCollection, parentId));
-  }
-
-  void _openApplication(String docId, Map<String, dynamic> d) async {
-    final images = await _imageFutureFor('applications', docId);
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AspectRatio(aspectRatio: 16 / 9, child: _UrlImagesPager(urls: images)),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(d['title'] ?? '', style: _titleStrong),
-                const SizedBox(height: 8),
-                Text((d['description'] ?? '').toString(), style: _subMuted),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -315,6 +335,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
               final d = doc.data();
 
               if (isSeeker) {
+                // apartments cards
                 return FutureBuilder<List<String>>(
                   future: _imageFutureFor('apartments', doc.id),
                   builder: (ctx, imgSnap) {
@@ -379,21 +400,23 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                   },
                 );
               } else {
+                // applications cards
                 return FutureBuilder<List<String>>(
                   future: _imageFutureFor('applications', doc.id),
                   builder: (ctx, imgSnap) {
                     final waiting = imgSnap.connectionState == ConnectionState.waiting && (imgSnap.data == null);
                     final images = imgSnap.data ?? const <String>[];
+                    final budget = (d['budget'] ?? 0).toString();
                     return InkWell(
                       onTap: () => Navigator.push(
                         context,
-                          MaterialPageRoute(
-                            builder: (_) => MoreInformationApplicationScreen(
-                              data: d,
-                              parentCollection: 'applications',
-                              parentId: doc.id,
-                              ),
-                            ),
+                        MaterialPageRoute(
+                          builder: (_) => MoreInformationApplicationScreen(
+                            data: d,
+                            parentCollection: 'applications',
+                            parentId: doc.id,
+                          ),
+                        ),
                       ),
                       borderRadius: BorderRadius.circular(16),
                       child: Card(
@@ -417,7 +440,13 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                                 children: [
                                   Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
                                   const SizedBox(height: 6),
-                                  Text((d['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: _subMuted),
+                                  Row(
+                                    children: [
+                                      Expanded(child: Text((d['description'] ?? '').toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: _subMuted)),
+                                      const SizedBox(width: 8),
+                                      Text('$budget DKK', style: _subStrong),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -436,19 +465,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
   }
 
   Widget _buildFilterCard(BuildContext context, bool isSeeker) {
-    final appsInfo = !isSeeker
-        ? Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-            child: Row(
-              children: [
-                Icon(PhosphorIcons.info(), size: 16, color: _iconColor),
-                const SizedBox(width: 6),
-                const Expanded(child: Text('Ansøgninger sorteres og kan filtreres på dato. Øvrige filtre vises men anvendes ikke.', style: TextStyle(fontSize: 12, color: _labelColor))),
-              ],
-            ),
-          )
-        : const SizedBox.shrink();
-
+    // seekers: full filters; landlords: only Sort + Budget
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -473,147 +490,190 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
             ),
           ),
           if (_filtersOpen)
-            Column(
-              children: [
-                appsInfo,
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Column(
-                    children: [
-                      _rowLabel('Sortér', _sizedField(_ddForm<String>(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  // Sort
+                  _rowLabel(
+                    'Sortér',
+                    _sizedField(
+                      _ddForm<String>(
                         context,
                         value: _sort,
                         items: _sortChoices.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                         onChanged: (v) => setState(() => _sort = v ?? _sort),
-                      ))),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _label('Lokation'),
-                          Expanded(
-                            child: SizedBox(
-                              height: _controlH,
-                              child: Stack(
-                                alignment: Alignment.centerRight,
-                                children: [
-                                  Container(
-                                    height: _controlH,
-                                    decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.only(left: 12, right: 36),
-                                    child: Center(
-                                      child: PostcodeFilterField(
-                                        controller: _locCtl,
-                                        onSelected: (s) => setState(() {
-                                          _location = s;
-                                          _locCtl.text = s ?? '';
-                                        }),
-                                      ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Budget/Price slider (always visible but labeled appropriately)
+                  _info(isSeeker ? 'Pris' : 'Budget',
+                      '${_money.start.toInt()}–${_money.end.toInt()} kr.'),
+                  _sliderTheme(
+                    context,
+                    RangeSlider(
+                      min: _moneyMin,
+                      max: _moneyMax,
+                      divisions: 100,
+                      values: _money,
+                      onChanged: (v) => setState(() => _money = v),
+                    ),
+                  ),
+
+                  if (isSeeker) ...[
+                    const SizedBox(height: 12),
+                    // Location
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _label('Lokation'),
+                        Expanded(
+                          child: SizedBox(
+                            height: _controlH,
+                            child: Stack(
+                              alignment: Alignment.centerRight,
+                              children: [
+                                Container(
+                                  height: _controlH,
+                                  decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.only(left: 12, right: 36),
+                                  child: Center(
+                                    child: PostcodeFilterField(
+                                      controller: _locCtl,
+                                      onSelected: (s) => setState(() {
+                                        _location = s;
+                                        _locCtl.text = s ?? '';
+                                      }),
                                     ),
                                   ),
-                                  Padding(padding: const EdgeInsets.only(right: 8), child: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor)),
-                                ],
-                              ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Icon(PhosphorIcons.caretDown(), size: 18, color: _iconColor),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+                    // Period
+                    _rowLabel(
+                      'Periode',
+                      _sizedField(
+                        _ddForm<String?>(
+                          context,
+                          value: _period,
+                          hint: const Text('Alle'),
+                          items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                          onChanged: (v) => setState(() => _period = v),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      _rowLabel('Periode', _sizedField(_ddForm<String?>(
-                        context,
-                        value: _period,
-                        hint: const Text('Alle'),
-                        items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                        onChanged: (v) => setState(() => _period = v),
-                      ))),
-                      const SizedBox(height: 12),
-                      _rowLabel('Oprettet', _sizedField(_ddForm<int?>(
-                        context,
-                        value: _maxAgeDays,
-                        hint: const Text('Alle'),
-                        items: _ageChoices.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
-                        onChanged: (v) => setState(() => _maxAgeDays = v),
-                      ))),
-                      const SizedBox(height: 12),
-                      _info('Pris', '${_price.start.toInt()}–${_price.end.toInt()} kr.'),
-                      _sliderTheme(context, RangeSlider(
-                        min: _priceMin,
-                        max: _priceMax,
-                        divisions: 100,
-                        values: _price,
-                        onChanged: (v) => setState(() => _price = v),
-                      )),
-                      const SizedBox(height: 8),
-                      _info('Størrelse', '${_size.start.toInt()}–${_size.end.toInt()} m²'),
-                      _sliderTheme(context, RangeSlider(
+                    ),
+
+                    const SizedBox(height: 12),
+                    // Created
+                    _rowLabel(
+                      'Oprettet',
+                      _sizedField(
+                        _ddForm<int?>(
+                          context,
+                          value: _maxAgeDays,
+                          hint: const Text('Alle'),
+                          items: _ageChoices.entries
+                              .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _maxAgeDays = v),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    // Size
+                    _info('Størrelse', '${_size.start.toInt()}–${_size.end.toInt()} m²'),
+                    _sliderTheme(
+                      context,
+                      RangeSlider(
                         min: _sizeMin,
                         max: _sizeMax,
                         divisions: 40,
                         values: _size,
                         onChanged: (v) => setState(() => _size = v),
-                      )),
-                      const SizedBox(height: 8),
-                      _info('Roommates', '${_mates.start.toInt()}–${_mates.end.toInt()}'),
-                      _sliderTheme(context, RangeSlider(
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+                    // Roommates
+                    _info('Roommates', '${_mates.start.toInt()}–${_mates.end.toInt()}'),
+                    _sliderTheme(
+                      context,
+                      RangeSlider(
                         min: _matesMin.toDouble(),
                         max: _matesMax.toDouble(),
                         divisions: 10,
                         values: _mates,
                         onChanged: (v) => setState(() => _mates = v),
-                      )),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: _controlH,
-                              child: TextButton(
-                                style: ButtonStyle(
-                                  backgroundColor: MaterialStateProperty.all(const Color(0xFFEFF2F6)),
-                                  minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
-                                  padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
-                                  foregroundColor: MaterialStateProperty.all(_labelColor),
-                                  shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                                ),
-                                onPressed: () => setState(() {
-                                  _locCtl.clear();
-                                  _location = null;
-                                  _period = null;
-                                  _maxAgeDays = null;
-                                  _price = const RangeValues(_priceMin, _priceMax);
-                                  _size = const RangeValues(_sizeMin, _sizeMax);
-                                  _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
-                                  _sort = 'Nyeste først';
-                                }),
-                                child: const Text('Nulstil filtre'),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: _controlH,
+                          child: TextButton(
+                            style: ButtonStyle(
+                              backgroundColor: MaterialStateProperty.all(const Color(0xFFEFF2F6)),
+                              minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
+                              padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 12)),
+                              foregroundColor: MaterialStateProperty.all(_labelColor),
+                              shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                            ),
+                            onPressed: () => setState(() {
+                              _sort = 'Nyeste først';
+                              _money = const RangeValues(_moneyMin, _moneyMax);
+                              if (isSeeker) {
+                                _locCtl.clear();
+                                _location = null;
+                                _period = null;
+                                _maxAgeDays = null;
+                                _size = const RangeValues(_sizeMin, _sizeMax);
+                                _mates = RangeValues(_matesMin.toDouble(), _matesMax.toDouble());
+                              }
+                            }),
+                            child: const Text('Nulstil filtre'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: _controlH,
+                          child: CustomButtonContainer(
+                            child: ElevatedButton(
+                              style: customElevatedButtonStyle().copyWith(
+                                minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
+                                padding: MaterialStateProperty.all(EdgeInsets.zero),
+                                backgroundColor: MaterialStateProperty.all(_btnBg),
+                                foregroundColor: MaterialStateProperty.all(Colors.white),
+                                shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                               ),
+                              onPressed: _applyFilters,
+                              child: const Text('Opdater'),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SizedBox(
-                              height: _controlH,
-                              child: CustomButtonContainer(
-                                child: ElevatedButton(
-                                  style: customElevatedButtonStyle().copyWith(
-                                    minimumSize: MaterialStateProperty.all(const Size(double.infinity, _controlH)),
-                                    padding: MaterialStateProperty.all(EdgeInsets.zero),
-                                    backgroundColor: MaterialStateProperty.all(_btnBg),
-                                    foregroundColor: MaterialStateProperty.all(Colors.white),
-                                    shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                                  ),
-                                  onPressed: _applyFilters,
-                                  child: const Text('Opdater'),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
         ],
       ),
@@ -738,7 +798,7 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
   }
 }
 
-// Small, correct-direction nav button (fixed to use passed icon)
+// Small nav button
 class _NavButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -753,9 +813,9 @@ class _NavButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onPressed,
         child: SizedBox(
-          width: 28,  // smaller button
+          width: 28,
           height: 28,
-          child: Center(child: Icon(icon, size: 16, color: Colors.white)), // uses the icon param (fix)
+          child: Center(child: Icon(icon, size: 16, color: Colors.white)),
         ),
       ),
     );
