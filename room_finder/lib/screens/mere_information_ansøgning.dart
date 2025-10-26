@@ -75,6 +75,8 @@ class MoreInformationApplicationScreen extends StatelessWidget {
         (budget != null) ? NumberFormat.decimalPattern('da_DK').format(budget.round()) : null;
 
     final ownerUid = data['ownedBy'] as String?;
+    final meUid = FirebaseAuth.instance.currentUser?.uid;
+    final isOwn = ownerUid != null && ownerUid == meUid;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -124,8 +126,8 @@ class MoreInformationApplicationScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (description.isNotEmpty) Text(description, style: const TextStyle(fontSize: 15)),
                 const SizedBox(height: 24),
-                _contactButton(context),
-                const SizedBox(height: 8),
+                if (!isOwn) _contactButton(context),
+                if (!isOwn) const SizedBox(height: 8),
               ],
             ),
           );

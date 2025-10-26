@@ -75,6 +75,8 @@ class MoreInformationScreen extends StatelessWidget {
 
     final priceStr = NumberFormat.decimalPattern('da_DK').format(price.round());
     final ownerUid = data['ownedBy'] as String?;
+    final meUid = FirebaseAuth.instance.currentUser?.uid;
+    final isOwn = ownerUid != null && ownerUid == meUid;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -126,8 +128,8 @@ class MoreInformationScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (description.isNotEmpty) Text(description, style: const TextStyle(fontSize: 15)),
                 const SizedBox(height: 24),
-                _applyButton(context),
-                const SizedBox(height: 8),
+                if (!isOwn) _applyButton(context),
+                if (!isOwn) const SizedBox(height: 8),
               ],
             ),
           );
@@ -520,6 +522,7 @@ class _NavButton extends StatelessWidget {
 
 class _SkeletonImage extends StatelessWidget {
   const _SkeletonImage();
+
   @override
   Widget build(BuildContext context) {
     return const ColoredBox(color: Color(0xFFE5E7EB));
