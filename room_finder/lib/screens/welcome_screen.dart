@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/navigation.dart';
-import 'log_ind_screen.dart';
-import 'opret_profil_screen.dart';
+import 'log_in_screen.dart';
+import 'create_profile_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});

@@ -8,10 +8,10 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../components/custom_styles.dart';
-import 'log_ind_screen.dart';
-import 'opret_profil_screen.dart';
-import 'mere_information_lejlighed.dart';
-import 'mere_information_ansøgning.dart';
+import 'log_in_screen.dart';
+import 'create_profile_screen.dart';
+import 'more_information_apartment.dart';
+import 'more_information_application.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, this.room});

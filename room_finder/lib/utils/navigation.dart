@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../screens/find_værelse_screen.dart';
-import '../screens/opret_screen.dart';
+import '../screens/create_room_and_applicatio_screen.dart';
 import '../screens/chat_screen.dart';     
-import '../screens/min_profil_screen.dart';
+import '../screens/my_profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;

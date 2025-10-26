@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import 'log_ind_screen.dart';
-import 'opret_profil_screen.dart';
+import 'log_in_screen.dart';
+import 'create_profile_screen.dart';
 import 'welcome_screen.dart';
 import '../utils/navigation.dart';
 

@@ -4,11 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import 'mere_information_lejlighed.dart';
+import 'more_information_apartment.dart';
 import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
 import '../components/custom_styles.dart';
-import 'mere_information_ansøgning.dart';
+import 'more_information_application.dart';
 
 class FindRoommatesScreen extends StatefulWidget {
   const FindRoommatesScreen({super.key});

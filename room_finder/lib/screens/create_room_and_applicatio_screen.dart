@@ -12,8 +12,8 @@ import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
 import '../components/postcode_enter_field.dart';
 import 'settings_screen.dart';
-import 'log_ind_screen.dart';
-import 'opret_profil_screen.dart';
+import 'log_in_screen.dart';
+import 'create_profile_screen.dart';
 
 class CreateListingScreen extends StatefulWidget {
   const CreateListingScreen({super.key});

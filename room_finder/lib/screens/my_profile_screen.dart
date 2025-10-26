@@ -8,8 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
 import 'settings_screen.dart';
-import 'log_ind_screen.dart';
-import 'opret_profil_screen.dart';
+import 'log_in_screen.dart';
+import 'create_profile_screen.dart';
 
 class YourProfileScreen extends StatefulWidget {
   const YourProfileScreen({super.key});

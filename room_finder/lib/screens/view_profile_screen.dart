@@ -6,7 +6,7 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'chat_screen.dart';
-import 'mere_information_lejlighed.dart';
+import 'more_information_apartment.dart';
 import '../utils/navigation.dart'; // for MainScreen
 
 class ViewProfileScreen extends StatelessWidget {
