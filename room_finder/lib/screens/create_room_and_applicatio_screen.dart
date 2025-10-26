@@ -287,12 +287,58 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Future<bool> _confirmDelete(String title) async {
     return await showDialog<bool>(
           context: context,
+          barrierDismissible: true,
           builder: (_) => AlertDialog(
-            title: const Text('Slet?'),
-            content: Text('Vil du slette "$title"?'),
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+            title: Row(
+              children: const [
+                Icon(FluentIcons.warning_24_regular, color: Color(0xFFDC2626)),
+                SizedBox(width: 8),
+                Text('Slet?'),
+              ],
+            ),
+            content: Text(
+              'Vil du slette "$title"? Dette kan ikke fortrydes.',
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuller')),
-              ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Slet')),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        foregroundColor: Colors.black87,
+                        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      child: const Text('Annuller'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      child: const Text('Slet'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ) ??
@@ -717,9 +763,15 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           foregroundColor: Colors.black87,
         ),
-        onPressed: () => _showPreview(isApplication: isApplication),
+        onPressed: () => _handlePreview(isApplication: isApplication),
       ),
     );
+  }
+
+  void _handlePreview({required bool isApplication}) {
+    final ok = isApplication ? _validateApplication() : _validateListing();
+    if (!ok) return;
+    _showPreview(isApplication: isApplication);
   }
 
   void _showPreview({required bool isApplication}) async {
