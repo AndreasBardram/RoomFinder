@@ -4,10 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-import 'mere_information.dart';
+import 'mere_information_lejlighed.dart';
 import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
 import '../components/custom_styles.dart';
+import 'mere_information_ansøgning.dart';
 
 class FindRoommatesScreen extends StatefulWidget {
   const FindRoommatesScreen({super.key});
@@ -384,7 +385,16 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                     final waiting = imgSnap.connectionState == ConnectionState.waiting && (imgSnap.data == null);
                     final images = imgSnap.data ?? const <String>[];
                     return InkWell(
-                      onTap: () => _openApplication(doc.id, d),
+                      onTap: () => Navigator.push(
+                        context,
+                          MaterialPageRoute(
+                            builder: (_) => MoreInformationApplicationScreen(
+                              data: d,
+                              parentCollection: 'applications',
+                              parentId: doc.id,
+                              ),
+                            ),
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       child: Card(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
