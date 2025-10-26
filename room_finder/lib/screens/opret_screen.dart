@@ -34,9 +34,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   final _descriptionController = TextEditingController();
   final _socialController = TextEditingController();
 
-  final _appAreaController = TextEditingController();
+  // APPLICATIONS (now only title, budget, description + pictures)
   final _budgetController = TextEditingController();
-  final _peopleController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
   final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://roomfinder-cec5a.firebasestorage.app');
@@ -71,9 +70,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _roommatesController.dispose();
     _descriptionController.dispose();
     _socialController.dispose();
-    _appAreaController.dispose();
     _budgetController.dispose();
-    _peopleController.dispose();
     super.dispose();
   }
 
@@ -126,17 +123,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return true;
   }
 
+  // APPLICATIONS: only title, budget, description
   bool _validateApplication() {
     final title = _titleController.text.trim();
     final desc = _descriptionController.text.trim();
-    final area = _appAreaController.text.trim();
     final budget = double.tryParse(_budgetController.text.trim());
-    final people = int.tryParse(_peopleController.text.trim());
     if (title.isEmpty || title.length > 100) return _fail('Titel skal udfyldes (max 100 tegn).');
-    if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
-    if (area.isEmpty) return _fail('Vælg område (postnummer).');
     if (budget == null || budget < 0 || budget > 100000) return _fail('Budget: 0-100 000 DKK.');
-    if (people == null || people < 1 || people > 10) return _fail('Antal personer: 1-10.');
+    if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
     setState(() => _errorMsg = null);
     return true;
   }
@@ -429,10 +423,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
-    final area = _appAreaController.text.trim();
     final budget = double.parse(_budgetController.text.trim());
-    final people = int.parse(_peopleController.text.trim());
-    final social = _socialController.text.trim();
     setState(() => _isUploading = true);
     try {
       final docRef = await FirebaseFirestore.instance.collection('applications').add({
@@ -441,10 +432,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'ownerLastName': _ownerLastName,
         'title': title,
         'description': description,
-        'area': area,
         'budget': budget,
-        'people': people,
-        'social': social,
         'createdAt': FieldValue.serverTimestamp(),
       });
       if (_images.isNotEmpty) {
@@ -469,9 +457,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _roommatesController.clear();
     _descriptionController.clear();
     _socialController.clear();
-    _appAreaController.clear();
     _budgetController.clear();
-    _peopleController.clear();
     _images = [];
     setState(() {});
   }
@@ -507,6 +493,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  // ----- APPLICATIONS FORM: pictures, title, budget, description -----
   Widget _applicationForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -515,16 +502,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         const SizedBox(height: 24),
         _labeledTF('Titel', _titleController, 'Skriv en titel'),
         const SizedBox(height: 16),
-        _label('Område (postnummer)'),
-        PostnrField(controller: _appAreaController),
-        const SizedBox(height: 16),
         _labeledTF('Budget (DKK)', _budgetController, 'fx 6000', type: TextInputType.number),
         const SizedBox(height: 16),
-        _labeledTF('Antal personer', _peopleController, 'fx 2', type: TextInputType.number),
-        const SizedBox(height: 16),
         _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 5),
-        const SizedBox(height: 16),
-        _labeledTF('Link til sociale medier (valgfrit)', _socialController, 'https://...'),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -546,6 +526,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
+  // ----- APARTMENTS FORM (unchanged) -----
   Widget _listingForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
