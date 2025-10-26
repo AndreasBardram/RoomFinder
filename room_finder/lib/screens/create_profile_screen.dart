@@ -190,11 +190,25 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   Widget _rolePicker() {
+    final canContinue = _role != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hvordan vil du bruge RoomMatch?', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset('assets/logo.png', width: 60, height: 60, fit: BoxFit.cover),
+          ),
+        ),
         const SizedBox(height: 16),
+        Center(
+          child: Text(
+            'Opret profil',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 24),
         _optionTile(
           value: 'seeker',
           title: 'Jeg leder efter et værelse',
@@ -211,10 +225,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            style: _primaryBtn,
-            onPressed: _role == null ? null : () => setState(() => _showForm = true),
-            child: const Text('Fortsæt'),
+          child: Visibility(
+            visible: canContinue,
+            maintainState: true,
+            maintainAnimation: true,
+            maintainSize: true,
+            child: ElevatedButton(
+              style: _primaryBtn,
+              onPressed: () => setState(() => _showForm = true),
+              child: const Text('Fortsæt'),
+            ),
           ),
         ),
       ],
