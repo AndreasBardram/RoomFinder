@@ -9,6 +9,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'chat_screen.dart';
 import 'view_profile_screen.dart';
 import '../utils/navigation.dart';
+import '../components/no_transition.dart'; 
 
 class MoreInformationApplicationScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -136,11 +137,7 @@ class MoreInformationApplicationScreen extends StatelessWidget {
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: 0,
-        onTap: (i) => Navigator.pushAndRemoveUntil(
-          context,
-          _noAnimRoute(MainScreen(initialIndex: i)),
-          (route) => false,
-        ),
+        onTap: (i) => pushAndRemoveAllNoAnim(context, MainScreen(initialIndex: i)),
         showUnselectedLabels: true,
         selectedItemColor: Colors.grey[600],
         unselectedItemColor: Colors.grey[600],
@@ -216,7 +213,7 @@ class MoreInformationApplicationScreen extends StatelessWidget {
     }
 
     if (!context.mounted) return;
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+    await pushNoAnim(context, ChatScreen(room: room));
   }
 
   Future<Map<String, dynamic>?> _selectAttachment(BuildContext context, {required String collection, required String title}) async {
@@ -296,7 +293,7 @@ class _ThumbRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = urls.take(3).toList();
     if (u.isEmpty) {
-      return Container(width: 72, height: 48, color: const Color(0xFFE5E7EB));
+      return const _Shimmer(child: SizedBox(width: 72, height: 48, child: ColoredBox(color: Color(0xFFE5E7EB))));
     }
     return SizedBox(
       width: 84,
@@ -353,10 +350,7 @@ class _UploaderTile extends StatelessWidget {
 
         return InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => ViewProfileScreen(userId: ownerUid)),
-          ),
+          onTap: () => pushNoAnim(context, ViewProfileScreen(userId: ownerUid)),
           child: Row(
             children: [
               CircleAvatar(
@@ -390,21 +384,23 @@ class _UploaderSkeleton extends StatelessWidget {
   const _UploaderSkeleton();
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE5E7EB)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _SkelBox(w: 120, h: 12),
-              SizedBox(height: 6),
-              _SkelBox(w: 80, h: 10),
-            ],
+    return const _Shimmer(
+      child: Row(
+        children: [
+          CircleAvatar(radius: 20, backgroundColor: Color(0xFFE5E7EB)),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SkelBox(w: 120, h: 12),
+                SizedBox(height: 6),
+                _SkelBox(w: 80, h: 10),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -414,7 +410,11 @@ class _SkelBox extends StatelessWidget {
   const _SkelBox({required this.w, required this.h});
   @override
   Widget build(BuildContext context) {
-    return Container(width: w, height: h, decoration: BoxDecoration(color: Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(6)));
+    return SizedBox(
+      width: w,
+      height: h,
+      child: const ColoredBox(color: Color(0xFFE5E7EB)),
+    );
   }
 }
 
@@ -516,13 +516,43 @@ class _SkeletonImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(color: Color(0xFFE5E7EB));
+    return const _Shimmer(child: ColoredBox(color: Color(0xFFE5E7EB)));
   }
 }
 
-PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      transitionsBuilder: (_, __, ___, child) => child,
+class _Shimmer extends StatefulWidget {
+  final Widget child;
+  const _Shimmer({required this.child});
+  @override
+  State<_Shimmer> createState() => _ShimmerState();
+}
+
+class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        return ShaderMask(
+          shaderCallback: (rect) {
+            return const LinearGradient(
+              colors: [Color(0xFFEFF2F6), Color(0xFFF5F7FB), Color(0xFFEFF2F6)],
+              stops: [0.2, 0.5, 0.8],
+            ).createShader(rect);
+          },
+          blendMode: BlendMode.srcATop,
+          child: widget.child,
+        );
+      },
     );
+  }
+}

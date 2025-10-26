@@ -186,7 +186,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                   if (!snap.hasData) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Container(width: 120, height: 90, color: Colors.grey[300]),
+                      child: const _SkeletonImageBox(width: 120, height: 90),
                     );
                   }
                   return GestureDetector(
@@ -421,7 +421,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _descriptionController.clear();
     _budgetController.clear();
     _images = [];
-    _periodMonths = 6;
+    _periodMonths = 0;
     _roommates = 2;
     setState(() {});
   }
@@ -745,7 +745,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 children: [
                   AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: bytes == null ? Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image, color: Colors.white))) : Image.memory(bytes, fit: BoxFit.cover),
+                    child: bytes == null ? const _SkeletonImage() : Image.memory(bytes, fit: BoxFit.cover),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -941,9 +941,14 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           future: FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: uid).get(),
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
+              return LayoutBuilder(
+                builder: (_, c) {
+                  final w = c.maxWidth;
+                  final imageH = w * 0.6;
+                  return Column(
+                    children: List.generate(3, (_) => Padding(padding: const EdgeInsets.only(bottom: 16), child: _SkeletonCard(imageHeight: imageH))),
+                  );
+                },
               );
             }
             if (snap.hasError) {
@@ -1110,7 +1115,7 @@ class _ImagesPagerState extends State<_ImagesPager> {
   @override
   Widget build(BuildContext context) {
     if (_imgs == null) {
-      return Container(height: widget.height, color: Colors.grey[300], child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+      return SizedBox(height: widget.height, child: const _SkeletonImage());
     }
     if (_imgs!.isEmpty) {
       return Container(height: widget.height, color: Colors.grey[300], child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white)));
@@ -1126,7 +1131,7 @@ class _ImagesPagerState extends State<_ImagesPager> {
             physics: _imgs!.length > 1 ? const ClampingScrollPhysics() : const NeverScrollableScrollPhysics(),
             onPageChanged: (v) => setState(() => _i = v),
             itemCount: _imgs!.length,
-            itemBuilder: (_, idx) => Image.network(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover),
+            itemBuilder: (_, idx) => Image.network(_imgs![idx], height: widget.height, width: double.infinity, fit: BoxFit.cover, gaplessPlayback: true),
           ),
           if (leftEnabled)
             Align(
@@ -1201,9 +1206,106 @@ class _DashedRRectPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DashedRRectPainter old) =>
-      old.color != color ||
-      old.radius != radius ||
-      old.dash != dash ||
-      old.gap != gap ||
-      old.strokeWidth != strokeWidth;
+      old.color != color || old.radius != radius || old.dash != dash || old.gap != gap || old.strokeWidth != strokeWidth;
+}
+
+class _SkeletonImage extends StatelessWidget {
+  const _SkeletonImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _Shimmer(child: ColoredBox(color: Color(0xFFEFF2F6)));
+  }
+}
+
+class _SkeletonImageBox extends StatelessWidget {
+  final double width;
+  final double height;
+  const _SkeletonImageBox({required this.width, required this.height});
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: width, height: height, child: const _SkeletonImage());
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  final double imageHeight;
+  const _SkeletonCard({required this.imageHeight});
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: imageHeight, child: const _SkeletonImage()),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                _Shimmer(child: _Box(width: 200, height: 16)),
+                SizedBox(height: 10),
+                _Shimmer(child: _Box(width: 160, height: 12)),
+                SizedBox(height: 6),
+                _Shimmer(child: _Box(width: 120, height: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Box extends StatelessWidget {
+  final double width;
+  final double height;
+  const _Box({required this.width, required this.height});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(color: const Color(0xFFEFF2F6), borderRadius: BorderRadius.circular(6)),
+    );
+  }
+}
+
+class _Shimmer extends StatefulWidget {
+  final Widget child;
+  const _Shimmer({required this.child});
+  @override
+  State<_Shimmer> createState() => _ShimmerState();
+}
+
+class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        return ShaderMask(
+          shaderCallback: (rect) {
+            return const LinearGradient(
+              colors: [Color(0xFFEFF2F6), Color(0xFFF5F7FB), Color(0xFFEFF2F6)],
+              stops: [0.2, 0.5, 0.8],
+            ).createShader(rect);
+          },
+          blendMode: BlendMode.srcATop,
+          child: widget.child,
+        );
+      },
+    );
+  }
 }
