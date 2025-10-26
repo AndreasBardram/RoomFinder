@@ -48,6 +48,40 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       helpText: 'Vælg fødselsdato',
       cancelText: 'Annuller',
       confirmText: 'OK',
+      // Keep header look default; only round corners + black accent
+      builder: (ctx, child) {
+        final base = Theme.of(ctx);
+        return Theme(
+          data: base.copyWith(
+            // Use black as accent for selected day etc.
+            colorScheme: base.colorScheme.copyWith(
+              primary: Colors.black,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+            // Rounded dialog corners
+            dialogTheme: const DialogTheme(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+            ),
+            // Keep header default; just make the overall picker rounded
+            datePickerTheme: const DatePickerThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+            ),
+            // Buttons in footer stay black text
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.black,
+                textStyle: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (d != null) {
       setState(() {
@@ -161,15 +195,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
+                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 15)),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8A93A6), fontSize: 13),
-                  ),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8A93A6), fontSize: 13)),
                 ],
               ),
             ),
@@ -218,7 +246,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         const SizedBox(height: 12),
         _optionTile(
           value: 'landlord',
-          title: 'Jeg vil udleje et værelse',
+          title: 'Jeg udlejer et værelse',
           subtitle: 'Opret opslag og find den rette lejer',
           icon: Icons.home_outlined,
         ),
@@ -284,7 +312,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             readOnly: true,
             cursorColor: Colors.black,
             onTap: _pickBirthDate,
-            decoration: _fieldDecoration('Vælg dato').copyWith(suffixIcon: const Icon(Icons.calendar_today_outlined)),
+            decoration: _fieldDecoration('Vælg dato').copyWith(
+              suffixIcon: const Icon(Icons.calendar_today_outlined),
+            ),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14, color: Colors.black),
           ),
         ),
@@ -334,13 +364,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           DropdownButtonFormField<String>(
             value: _role,
             isExpanded: true,
-            decoration: _fieldDecoration('Finder værelse'),
+            decoration: _fieldDecoration('Leder efter et værelse'),
             items: const [
-              DropdownMenuItem(value: 'seeker', child: Text('Finder værelse')),
-              DropdownMenuItem(value: 'landlord', child: Text('Udlejer værelse')),
+              DropdownMenuItem(value: 'seeker', child: Text('Leder efter et værelse')),
+              DropdownMenuItem(value: 'landlord', child: Text('Udlejer et værelse')),
             ],
             onChanged: (v) => setState(() => _role = v),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+            icon: const Icon(Icons.expand_more, color: Colors.black87),
+            // Match the fields' light grey background for the popup menu
+            dropdownColor: const Color(0xFFF6F7FA),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
         const SizedBox(height: 24),
