@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -23,22 +23,26 @@ class CreateListingScreen extends StatefulWidget {
 
 class _CreateListingScreenState extends State<CreateListingScreen> {
   static const int _maxImages = 6;
+  static const int _maxTitle = 100;
+  static const int _maxDesc = 1000;
+  static const int _minDesc = 50;
+
+  static const int _targetMaxSide = 1440;
+  static const int _jpegQuality = 85;
+  static const int _maxUploadBytes = 4 * 1024 * 1024;
 
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _addressController = TextEditingController();
   final _priceController = TextEditingController();
   final _sizeController = TextEditingController();
-  final _periodController = TextEditingController();
-  final _roommatesController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _socialController = TextEditingController();
-
-  // APPLICATIONS (now only title, budget, description + pictures)
   final _budgetController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
-  final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://roomfinder-cec5a.firebasestorage.app');
+  final FirebaseStorage _storage = FirebaseStorage.instanceFor(
+    bucket: 'gs://roomfinder-cec5a.firebasestorage.app',
+  );
 
   List<XFile> _images = [];
   bool _isUploading = false;
@@ -47,6 +51,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   String? _profileType;
   String _ownerFirstName = '';
   String _ownerLastName = '';
+
+  bool _unlimitedPeriod = false;
+  int _periodMonths = 6;
+  int _roommates = 2;
+
+  bool get _isSeeker => (_profileType ?? '').toLowerCase() != 'landlord';
 
   static const _hairline = Color(0xFFF1F5F9);
   static const _fill = Color(0xFFF6F7FA);
@@ -57,6 +67,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   void initState() {
     super.initState();
     _loadProfileType();
+    _descriptionController.addListener(() => setState(() {}));
+    for (final c in [_priceController, _sizeController, _budgetController]) {
+      c.addListener(() => setState(() {}));
+    }
+    _titleController.addListener(() => setState(() {}));
   }
 
   @override
@@ -66,10 +81,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _addressController.dispose();
     _priceController.dispose();
     _sizeController.dispose();
-    _periodController.dispose();
-    _roommatesController.dispose();
     _descriptionController.dispose();
-    _socialController.dispose();
     _budgetController.dispose();
     super.dispose();
   }
@@ -100,37 +112,64 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     return false;
   }
 
+  String _periodString() => _unlimitedPeriod ? 'ubegrænset' : '$_periodMonths måneder';
+
+  int? _parseInt(String text) {
+    if (text.trim().isEmpty) return null;
+    final normalized = text.replaceAll('.', '').replaceAll(',', '');
+    return int.tryParse(normalized);
+  }
+
   bool _validateListing() {
     final title = _titleController.text.trim();
     final loc = _locationController.text.trim();
     final addr = _addressController.text.trim();
-    final price = double.tryParse(_priceController.text.trim());
-    final size = double.tryParse(_sizeController.text.trim());
-    final per = _periodController.text.trim();
-    final perNum = int.tryParse(per);
-    final mate = int.tryParse(_roommatesController.text.trim());
+    final price = _parseInt(_priceController.text);
+    final size = _parseInt(_sizeController.text);
     final desc = _descriptionController.text.trim();
-    if (title.isEmpty || title.length > 100) return _fail('Titel skal udfyldes (max 100 tegn).');
+    if (title.isEmpty || title.length > _maxTitle) {
+      return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
+    }
     if (loc.isEmpty) return _fail('Vælg postnummer.');
     if (addr.isEmpty) return _fail('Adresse skal udfyldes.');
-    if (price == null || price < 0 || price > 100000) return _fail('Pris: 0-100 000 DKK.');
-    if (size == null || size < 1 || size > 1000) return _fail('Størrelse: 1-1 000 m².');
-    final perOk = per.toLowerCase() == 'ubegrænset' || (perNum != null && perNum >= 1 && perNum <= 100);
-    if (!perOk) return _fail('Periode: "ubegrænset" eller 1-100 måneder.');
-    if (mate == null || mate < 1 || mate > 10) return _fail('Roommates: 1-10.');
-    if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
+    if (price == null || price < 0 || price > 100000) {
+      return _fail('Pris: 0-100 000 DKK.');
+    }
+    if (size == null || size < 1 || size > 1000) {
+      return _fail('Størrelse: 1-1 000 m².');
+    }
+    if (!_unlimitedPeriod && (_periodMonths < 1 || _periodMonths > 100)) {
+      return _fail('Periode: 1-100 måneder eller ubegrænset.');
+    }
+    if (_roommates < 1 || _roommates > 10) {
+      return _fail('Roommates: 1-10.');
+    }
+    if (desc.isEmpty || desc.length > _maxDesc) {
+      return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
+    }
+    if (desc.length < _minDesc) {
+      return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
+    }
     setState(() => _errorMsg = null);
     return true;
   }
 
-  // APPLICATIONS: only title, budget, description
   bool _validateApplication() {
     final title = _titleController.text.trim();
     final desc = _descriptionController.text.trim();
-    final budget = double.tryParse(_budgetController.text.trim());
-    if (title.isEmpty || title.length > 100) return _fail('Titel skal udfyldes (max 100 tegn).');
-    if (budget == null || budget < 0 || budget > 100000) return _fail('Budget: 0-100 000 DKK.');
-    if (desc.isEmpty || desc.length > 1000) return _fail('Beskrivelse skal udfyldes (max 1000 tegn).');
+    final budget = _parseInt(_budgetController.text);
+    if (title.isEmpty || title.length > _maxTitle) {
+      return _fail('Titel skal udfyldes (max $_maxTitle tegn).');
+    }
+    if (budget == null || budget < 0 || budget > 100000) {
+      return _fail('Budget: 0-100 000 DKK.');
+    }
+    if (desc.isEmpty || desc.length > _maxDesc) {
+      return _fail('Beskrivelse skal udfyldes (max $_maxDesc tegn).');
+    }
+    if (desc.length < _minDesc) {
+      return _fail('Skriv lidt mere (mindst $_minDesc tegn er anbefalet).');
+    }
     setState(() => _errorMsg = null);
     return true;
   }
@@ -141,94 +180,113 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     setState(() {});
   }
 
-  Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      );
-
-  InputDecoration _dec({required String hint, Widget? suffix}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: _hint),
-      filled: true,
-      fillColor: _fill,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      suffixIcon: suffix,
-    );
+  void _removeImageAt(int i) {
+    if (i < 0 || i >= _images.length) return;
+    setState(() => _images.removeAt(i));
   }
 
-  Widget _labeledTF(String label, TextEditingController c, String hint,
-      {TextInputType? type, int maxLines = 1, Widget? suffix}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label(label),
-        TextField(
-          controller: c,
-          keyboardType: type,
-          maxLines: maxLines,
-          cursorColor: Colors.black,
-          decoration: _dec(hint: hint, suffix: suffix),
-        ),
-      ],
-    );
+  void _makeCover(int i) {
+    if (i <= 0 || i >= _images.length) return;
+    final f = _images.removeAt(i);
+    _images.insert(0, f);
+    setState(() {});
   }
 
-  Widget _imagePickerButton() {
-    final has = _images.isNotEmpty;
-    return InkWell(
-      onTap: _pickImages,
-      borderRadius: BorderRadius.circular(16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: CustomPaint(
-          painter: _DashedRRectPainter(color: Colors.black12, radius: 16, dash: 8, gap: 6, strokeWidth: 2),
-          child: Container(
-            height: 160,
-            color: _fill,
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(FluentIcons.arrow_upload_24_regular, size: 28, color: _icon),
-                const SizedBox(height: 8),
-                Text(
-                  has ? '${_images.length} billede(r) valgt – tryk for at ændre' : 'Tryk for at tilføje op til $_maxImages billeder (valgfrit)',
-                  style: const TextStyle(color: Colors.black87),
-                  textAlign: TextAlign.center,
+  Widget _selectedImagesStrip() {
+    if (_images.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(top: 12),
+        itemBuilder: (_, i) {
+          final isCover = i == 0;
+          return Stack(
+            children: [
+              FutureBuilder<Uint8List>(
+                future: _images[i].readAsBytes(),
+                builder: (_, snap) {
+                  if (!snap.hasData) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(width: 120, height: 90, color: Colors.grey[300]),
+                    );
+                  }
+                  return GestureDetector(
+                    onTap: () => _makeCover(i),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(snap.data!, width: 120, height: 90, fit: BoxFit.cover),
+                    ),
+                  );
+                },
+              ),
+              if (isCover)
+                Positioned(
+                  left: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(6)),
+                    child: const Text('Cover', style: TextStyle(color: Colors.white, fontSize: 11)),
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ),
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => _removeImageAt(i),
+                    child: const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: Icon(Icons.close, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemCount: _images.length,
       ),
     );
   }
 
-  Future<Uint8List> _jpeg1080(XFile f) async {
+  Future<Uint8List> _jpegResized(XFile f) async {
     final src = await f.readAsBytes();
     final decoded = img.decodeImage(src);
     if (decoded == null) throw Exception('Kunne ikke læse billedet');
+
     int tw = decoded.width, th = decoded.height;
-    if (decoded.width >= decoded.height) {
-      if (decoded.width > 1080) {
-        tw = 1080;
-        th = (decoded.height * 1080 / decoded.width).round();
+    final wide = decoded.width >= decoded.height;
+
+    if (wide) {
+      if (decoded.width > _targetMaxSide) {
+        tw = _targetMaxSide;
+        th = (decoded.height * _targetMaxSide / decoded.width).round();
       }
     } else {
-      if (decoded.height > 1080) {
-        th = 1080;
-        tw = (decoded.width * 1080 / decoded.height).round();
+      if (decoded.height > _targetMaxSide) {
+        th = _targetMaxSide;
+        tw = (decoded.width * _targetMaxSide / decoded.height).round();
       }
     }
+
     final resized = (tw != decoded.width || th != decoded.height)
         ? img.copyResize(decoded, width: tw, height: th, interpolation: img.Interpolation.cubic)
         : decoded;
-    final jpg = img.encodeJpg(resized, quality: 80);
-    return Uint8List.fromList(jpg);
+
+    final jpg = img.encodeJpg(resized, quality: _jpegQuality);
+    final bytes = Uint8List.fromList(jpg);
+    if (bytes.lengthInBytes > _maxUploadBytes) {
+      throw Exception('Et billede er for stort (> 4 MB). Prøv igen.');
+    }
+    return bytes;
   }
 
   Future<void> _saveImagesToCollection({
@@ -238,12 +296,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   }) async {
     final col = FirebaseFirestore.instance.collection('images');
     for (var i = 0; i < files.length && i < _maxImages; i++) {
-      final bytes = await _jpeg1080(files[i]);
-      if (bytes.lengthInBytes > 950 * 1024) throw Exception('Et billede er for stort (>950 KB). Prøv igen.');
+      final bytes = await _jpegResized(files[i]);
       final path = 'images/$parentCollection/$parentId/$i.jpg';
       final ref = _storage.ref().child(path);
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final url = await ref.getDownloadURL();
+
       final data = {
         'parentCollection': parentCollection,
         'parentId': parentId,
@@ -259,60 +317,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       } on FirebaseException {
         await col.add(data);
       }
-    }
-  }
-
-  Future<String?> _fetchFirstImage(String parentCollection, String parentId) async {
-    final byId = '${parentCollection}_${parentId}_0';
-    try {
-      final doc = await FirebaseFirestore.instance.collection('images').doc(byId).get();
-      if (doc.exists) {
-        final data = doc.data();
-        if (data != null && data['url'] != null) return data['url'] as String;
-      }
-    } catch (_) {}
-    try {
-      final q = await FirebaseFirestore.instance
-          .collection('images')
-          .where('parentCollection', isEqualTo: parentCollection)
-          .where('parentId', isEqualTo: parentId)
-          .orderBy('index')
-          .limit(1)
-          .get();
-      if (q.docs.isEmpty) return null;
-      return (q.docs.first.data()['url'] as String?);
-    } catch (_) {
-      final q2 = await FirebaseFirestore.instance
-          .collection('images')
-          .where('parentCollection', isEqualTo: parentCollection)
-          .where('parentId', isEqualTo: parentId)
-          .limit(_maxImages)
-          .get();
-      if (q2.docs.isEmpty) return null;
-      q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
-      return (q2.docs.first.data()['url'] as String?);
-    }
-  }
-
-  Future<List<String>> _fetchAllImages(String parentCollection, String parentId) async {
-    try {
-      final q = await FirebaseFirestore.instance
-          .collection('images')
-          .where('parentCollection', isEqualTo: parentCollection)
-          .where('parentId', isEqualTo: parentId)
-          .orderBy('index')
-          .limit(_maxImages)
-          .get();
-      return q.docs.map((d) => (d.data()['url'] as String)).toList();
-    } catch (_) {
-      final q2 = await FirebaseFirestore.instance
-          .collection('images')
-          .where('parentCollection', isEqualTo: parentCollection)
-          .where('parentId', isEqualTo: parentId)
-          .limit(_maxImages)
-          .get();
-      q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
-      return q2.docs.map((d) => (d.data()['url'] as String)).toList();
     }
   }
 
@@ -378,12 +382,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
     final address = _addressController.text.trim();
-    final price = double.parse(_priceController.text.trim());
-    final size = double.parse(_sizeController.text.trim());
-    final period = _periodController.text.trim();
-    final roommates = int.parse(_roommatesController.text.trim());
+    final price = (_parseInt(_priceController.text) ?? 0).toDouble();
+    final size = (_parseInt(_sizeController.text) ?? 0).toDouble();
+    final period = _periodString();
+    final roommates = _roommates;
     final description = _descriptionController.text.trim();
-    final social = _socialController.text.trim();
+
     setState(() => _isUploading = true);
     try {
       final docRef = await FirebaseFirestore.instance.collection('apartments').add({
@@ -398,7 +402,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         'period': period,
         'roommates': roommates,
         'description': description,
-        'social': social,
         'createdAt': FieldValue.serverTimestamp(),
       });
       if (_images.isNotEmpty) {
@@ -423,7 +426,8 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
-    final budget = double.parse(_budgetController.text.trim());
+    final budget = (_parseInt(_budgetController.text) ?? 0).toDouble();
+
     setState(() => _isUploading = true);
     try {
       final docRef = await FirebaseFirestore.instance.collection('applications').add({
@@ -453,12 +457,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     _addressController.clear();
     _priceController.clear();
     _sizeController.clear();
-    _periodController.clear();
-    _roommatesController.clear();
     _descriptionController.clear();
-    _socialController.clear();
     _budgetController.clear();
     _images = [];
+    _unlimitedPeriod = false;
+    _periodMonths = 6;
+    _roommates = 2;
     setState(() {});
   }
 
@@ -493,19 +497,212 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  // ----- APPLICATIONS FORM: pictures, title, budget, description -----
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      );
+
+  Widget _titleLabelWithCounter() => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            const Text('Titel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text('${_titleController.text.length}/$_maxTitle', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
+      );
+
+  InputDecoration _dec({required String hint, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _hint),
+      filled: true,
+      fillColor: _fill,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      suffixIcon: suffix,
+    );
+  }
+
+  Widget _textField(
+    TextEditingController c, {
+    String hint = '',
+    TextInputType? type,
+    List<TextInputFormatter>? inputFormatters,
+    int maxLines = 1,
+    int? maxLength,
+    bool hideCounter = true,
+    Widget? suffix,
+  }) {
+    return TextField(
+      controller: c,
+      keyboardType: type,
+      inputFormatters: inputFormatters,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      cursorColor: Colors.black,
+      buildCounter: hideCounter ? (_, {required int currentLength, required bool isFocused, required int? maxLength}) => const SizedBox.shrink() : null,
+      decoration: _dec(hint: hint, suffix: suffix),
+    );
+  }
+
+  Widget _periodPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Periode'),
+        Container(
+          decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(value: false, label: Text('Begrænset')),
+                  ButtonSegment<bool>(value: true, label: Text('Ubegrænset')),
+                ],
+                selected: {_unlimitedPeriod},
+                onSelectionChanged: (s) => setState(() => _unlimitedPeriod = s.first),
+              ),
+              if (!_unlimitedPeriod)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(
+                    children: [
+                      const Text('Måneder:'),
+                      const SizedBox(width: 12),
+                      IconButton(onPressed: _periodMonths > 1 ? () => setState(() => _periodMonths--) : null, icon: const Icon(Icons.remove)),
+                      Text('$_periodMonths', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      IconButton(onPressed: _periodMonths < 100 ? () => setState(() => _periodMonths++) : null, icon: const Icon(Icons.add)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stepper({
+    required String label,
+    required int value,
+    required int min,
+    required int max,
+    required void Function(int) onChanged,
+    String? helper,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        Container(
+          decoration: BoxDecoration(color: _fill, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: value > min ? () => onChanged(value - 1) : null,
+                icon: const Icon(Icons.remove),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text('$value', style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: value < max ? () => onChanged(value + 1) : null,
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ),
+        if (helper != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(helper, style: const TextStyle(color: _hint, fontSize: 12))),
+      ],
+    );
+  }
+
+  Widget _imagePickerButton() {
+    final has = _images.isNotEmpty;
+    return InkWell(
+      onTap: _pickImages,
+      borderRadius: BorderRadius.circular(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: CustomPaint(
+          painter: _DashedRRectPainter(color: Colors.black12, radius: 16, dash: 8, gap: 6, strokeWidth: 2),
+          child: Container(
+            height: 160,
+            color: _fill,
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(FluentIcons.arrow_upload_24_regular, size: 28, color: _icon),
+                const SizedBox(height: 8),
+                Text(
+                  has
+                      ? '${_images.length} billede(r) valgt – tryk for at ændre'
+                      : 'Tryk for at tilføje op til $_maxImages billeder',
+                  style: const TextStyle(color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _titleField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _titleLabelWithCounter(),
+        _textField(
+          _titleController,
+          hint: 'Skriv en titel',
+          maxLength: _maxTitle,
+          hideCounter: true,
+        ),
+      ],
+    );
+  }
+
   Widget _applicationForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _imagePickerButton(),
+        _selectedImagesStrip(),
         const SizedBox(height: 24),
-        _labeledTF('Titel', _titleController, 'Skriv en titel'),
+        _titleField(),
         const SizedBox(height: 16),
-        _labeledTF('Budget (DKK)', _budgetController, 'fx 6000', type: TextInputType.number),
+        _label('Budget (DKK)'),
+        _textField(
+          _budgetController,
+          hint: 'fx 6000',
+          type: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
         const SizedBox(height: 16),
-        _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 5),
-        const SizedBox(height: 24),
+        _label('Beskrivelse'),
+        _textField(
+          _descriptionController,
+          hint: 'Skriv en beskrivelse',
+          maxLines: 6,
+          maxLength: _maxDesc,
+          hideCounter: true,
+        ),
+        const SizedBox(height: 16),
+        _previewButton(isApplication: true),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: CustomButtonContainer(
@@ -526,32 +723,58 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     );
   }
 
-  // ----- APARTMENTS FORM (unchanged) -----
   Widget _listingForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _imagePickerButton(),
+        _selectedImagesStrip(),
         const SizedBox(height: 24),
-        _labeledTF('Titel', _titleController, 'Skriv en titel'),
+        _titleField(),
         const SizedBox(height: 16),
         _label('Postnummer'),
         PostnrField(controller: _locationController),
         const SizedBox(height: 16),
-        _labeledTF('Adresse', _addressController, 'fx Nørrebrogade 1'),
+        _label('Adresse'),
+        _textField(_addressController, hint: 'fx Nørrebrogade 1', type: TextInputType.streetAddress),
         const SizedBox(height: 16),
-        _labeledTF('Pris (DKK)', _priceController, 'fx 6000', type: TextInputType.number),
+        _label('Pris (DKK)'),
+        _textField(
+          _priceController,
+          hint: 'fx 6000',
+          type: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
         const SizedBox(height: 16),
-        _labeledTF('Størrelse (m²)', _sizeController, 'fx 18', type: TextInputType.number),
+        _label('Størrelse (m²)'),
+        _textField(
+          _sizeController,
+          hint: 'fx 18',
+          type: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
         const SizedBox(height: 16),
-        _labeledTF('Periode (måneder / ubegrænset)', _periodController, 'fx ubegrænset eller 6 måneder'),
+        _periodPicker(),
         const SizedBox(height: 16),
-        _labeledTF('Antal roommates', _roommatesController, 'fx 2', type: TextInputType.number),
+        _stepper(
+          label: 'Antal roommates',
+          value: _roommates,
+          min: 1,
+          max: 10,
+          onChanged: (v) => setState(() => _roommates = v),
+        ),
         const SizedBox(height: 16),
-        _labeledTF('Beskrivelse', _descriptionController, 'Skriv en beskrivelse', maxLines: 4),
+        _label('Beskrivelse'),
+        _textField(
+          _descriptionController,
+          hint: 'Skriv en beskrivelse',
+          maxLines: 5,
+          maxLength: _maxDesc,
+          hideCounter: true,
+        ),
         const SizedBox(height: 16),
-        _labeledTF('Link til sociale medier (valgfrit)', _socialController, 'https://...'),
-        const SizedBox(height: 24),
+        _previewButton(isApplication: false),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: CustomButtonContainer(
@@ -570,6 +793,115 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         ),
       ],
     );
+  }
+
+  Widget _previewButton({required bool isApplication}) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: const Icon(FluentIcons.eye_24_regular),
+        label: const Text('Forhåndsvis'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(48),
+          side: const BorderSide(color: Color(0xFFE5E7EB)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          foregroundColor: Colors.black87,
+        ),
+        onPressed: () => _showPreview(isApplication: isApplication),
+      ),
+    );
+  }
+
+  void _showPreview({required bool isApplication}) async {
+    final bytes = _images.isNotEmpty ? await _images.first.readAsBytes() : null;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sådan ser dit opslag ud', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 2,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: bytes == null
+                        ? Container(color: Colors.grey[300], child: const Center(child: Icon(Icons.image, color: Colors.white)))
+                        : Image.memory(bytes, fit: BoxFit.cover),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_titleController.text.trim(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        if (isApplication) ...[
+                          Text('Budget: ${_budgetController.text.isEmpty ? '—' : _budgetController.text} DKK', style: const TextStyle(color: Colors.black54)),
+                          const SizedBox(height: 6),
+                          Text(_descriptionController.text.trim(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        ] else ...[
+                          Row(
+                            children: [
+                              Expanded(child: Text(_locationController.text.isEmpty ? 'Ukendt' : _locationController.text, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                              Text(_sizeController.text.isEmpty ? '— m²' : '${_sizeController.text} m²', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(child: Text('Roommates: $_roommates', style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                              Text(_priceController.text.isEmpty ? '— DKK' : '${_priceController.text} DKK', style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Luk')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<List<String>> _fetchAllImages(String parentCollection, String parentId) async {
+    try {
+      final q = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .orderBy('index')
+          .limit(_maxImages)
+          .get();
+      return q.docs.map((d) => (d.data()['url'] as String)).toList();
+    } catch (_) {
+      final q2 = await FirebaseFirestore.instance
+          .collection('images')
+          .where('parentCollection', isEqualTo: parentCollection)
+          .where('parentId', isEqualTo: parentId)
+          .limit(_maxImages)
+          .get();
+      q2.docs.sort((a, b) => ((a.data()['index'] ?? 999) as int).compareTo((b.data()['index'] ?? 999) as int));
+      return q2.docs.map((d) => (d.data()['url'] as String)).toList();
+    }
   }
 
   Widget _itemCard({
@@ -717,11 +1049,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 final w = constraints.maxWidth;
                 final imageH = w * 0.6;
                 if (docs.isEmpty) {
-                  return Column(
-                    children: [
-                      _emptyItemCard(imageH, isSeeker),
-                    ],
-                  );
+                  return Column(children: [_emptyItemCard(imageH, isSeeker)]);
                 }
                 return ListView.separated(
                   itemCount: docs.length,
@@ -746,7 +1074,6 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final uid = user?.uid;
-    final isSeeker = (_profileType ?? '').toLowerCase() != 'landlord';
 
     final themed = Theme.of(context).copyWith(
       textSelectionTheme: const TextSelectionThemeData(
@@ -773,7 +1100,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           centerTitle: false,
           titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
           iconTheme: const IconThemeData(color: Colors.black),
-          title: Text(isSeeker ? 'Opret ansøgning' : 'Opret værelse'),
+          title: Text(_isSeeker ? 'Opret ansøgning' : 'Opret værelse'),
           actions: [
             IconButton(
               icon: const Icon(FluentIcons.settings_24_regular),
@@ -797,7 +1124,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          isSeeker ? _applicationForm() : _listingForm(),
+                          _isSeeker ? _applicationForm() : _listingForm(),
                           if (uid != null) _userPostsSection(uid),
                         ],
                       ),
