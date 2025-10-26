@@ -9,6 +9,7 @@ import 'settings_screen.dart';
 import '../components/postcode_filter_field.dart';
 import '../components/custom_styles.dart';
 import 'more_information_application.dart';
+import '../components/no_transition.dart'; // ← use shared no-transition helpers
 
 class FindRoommatesScreen extends StatefulWidget {
   const FindRoommatesScreen({super.key});
@@ -303,7 +304,7 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
           actions: [
             IconButton(
               icon: const Icon(FluentIcons.settings_24_regular),
-              onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+              onPressed: () => pushNoAnim(context, const SettingsScreen()), // ← no transition
             ),
           ],
           bottom: const PreferredSize(
@@ -355,14 +356,12 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                               child: waiting
                                   ? const _SkeletonImage()
                                   : GestureDetector(
-                                      onTap: () => Navigator.push(
+                                      onTap: () => pushNoAnim( // ← no transition
                                         context,
-                                        MaterialPageRoute(
-                                          builder: (_) => MoreInformationScreen(
-                                            data: d,
-                                            parentCollection: 'apartments',
-                                            parentId: doc.id,
-                                          ),
+                                        MoreInformationScreen(
+                                          data: d,
+                                          parentCollection: 'apartments',
+                                          parentId: doc.id,
                                         ),
                                       ),
                                       child: _UrlImagesPager(urls: images),
@@ -408,14 +407,12 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                     final images = imgSnap.data ?? const <String>[];
                     final budget = (d['budget'] ?? 0).toString();
                     return InkWell(
-                      onTap: () => Navigator.push(
+                      onTap: () => pushNoAnim( // ← no transition
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => MoreInformationApplicationScreen(
-                            data: d,
-                            parentCollection: 'applications',
-                            parentId: doc.id,
-                          ),
+                        MoreInformationApplicationScreen(
+                          data: d,
+                          parentCollection: 'applications',
+                          parentId: doc.id,
                         ),
                       ),
                       borderRadius: BorderRadius.circular(16),
@@ -913,10 +910,3 @@ class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin 
     );
   }
 }
-
-PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      transitionsBuilder: (_, __, ___, child) => child,
-    );
