@@ -9,11 +9,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../components/custom_styles.dart';
+import '../components/no_transition.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
 import 'more_information_apartment.dart';
 import 'more_information_application.dart';
 import 'settings_screen.dart';
+
+const kBrandPurple = Color(0xFF7C6CF4);
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, this.room});
@@ -38,7 +41,7 @@ class ChatScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+            onPressed: () => pushNoAnim(context, const SettingsScreen()),
           ),
         ],
         bottom: const PreferredSize(
@@ -63,7 +66,7 @@ class ChatScreen extends StatelessWidget {
         child: CustomButtonContainer(
           child: ElevatedButton(
             style: customElevatedButtonStyle(),
-            onPressed: () => Navigator.push(ctx, _noAnimRoute(page)),
+            onPressed: () => pushNoAnim(ctx, page),
             child: Text(label),
           ),
         ),
@@ -91,7 +94,7 @@ class _RoomsPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+            onPressed: () => pushNoAnim(context, const SettingsScreen()),
           ),
         ],
         bottom: const PreferredSize(
@@ -101,7 +104,7 @@ class _RoomsPage extends StatelessWidget {
       ),
       body: StreamBuilder<List<types.Room>>(
         stream: FirebaseChatCore.instance.rooms(),
-        builder: (_, snap) {
+        builder: (ctx, snap) {
           final rooms = snap.data ?? [];
           if (rooms.isEmpty) {
             return const Center(child: Text('Ingen samtaler endnu'));
@@ -109,7 +112,7 @@ class _RoomsPage extends StatelessWidget {
           return ListView.separated(
             itemCount: rooms.length,
             separatorBuilder: (_, __) => const Divider(height: 0, color: _hairline),
-            itemBuilder: (_, i) {
+            itemBuilder: (itemCtx, i) {
               final room = rooms[i];
               final last = room.lastMessages?.isNotEmpty == true ? room.lastMessages!.last : null;
               String subtitle = '';
@@ -123,7 +126,7 @@ class _RoomsPage extends StatelessWidget {
                   ? DateFormat.Hm('da').format(DateTime.fromMillisecondsSinceEpoch(last.createdAt!))
                   : '';
               return InkWell(
-                onTap: () => Navigator.push(_, _noAnimRoute(ChatScreen(room: room))),
+                onTap: () => pushNoAnim(itemCtx, ChatScreen(room: room)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
@@ -174,27 +177,13 @@ class _RoomsPage extends StatelessWidget {
     }
     final name = (other.firstName?.isNotEmpty == true ? other.firstName! : room.name ?? 'B');
     final letter = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'B';
-    final color = _colorFromString(other.id);
-    return CircleAvatar(radius: 18, backgroundColor: color, child: Text(letter, style: const TextStyle(color: Colors.white)));
+    return CircleAvatar(radius: 18, backgroundColor: kBrandPurple, child: Text(letter, style: const TextStyle(color: Colors.white)));
   }
 
   String _title(types.Room room, String myId) {
     if (room.name != null && room.name!.isNotEmpty) return room.name!;
     final others = room.users.where((u) => u.id != myId);
     return others.map((u) => u.firstName ?? 'Bruger').join(', ');
-  }
-
-  static Color _colorFromString(String s) {
-    final h = s.hashCode;
-    final palette = [
-      Color(0xFF7C6CF4),
-      Color(0xFF6366F1),
-      Color(0xFF8B5CF6),
-      Color(0xFF10B981),
-      Color(0xFFF59E0B),
-      Color(0xFFEF4444),
-    ];
-    return palette[h.abs() % palette.length];
   }
 }
 
@@ -243,9 +232,9 @@ class _RoomPageState extends State<_RoomPage> {
     if (!mounted || !snap.exists) return;
     final d = snap.data()!;
     if (collection == 'apartments') {
-      Navigator.push(context, _noAnimRoute(MoreInformationScreen(data: d, parentCollection: collection, parentId: id)));
+      await pushNoAnim(context, MoreInformationScreen(data: d, parentCollection: collection, parentId: id));
     } else {
-      Navigator.push(context, _noAnimRoute(MoreInformationApplicationScreen(data: d, parentCollection: collection, parentId: id)));
+      await pushNoAnim(context, MoreInformationApplicationScreen(data: d, parentCollection: collection, parentId: id));
     }
   }
 
@@ -264,7 +253,7 @@ class _RoomPageState extends State<_RoomPage> {
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.settings_24_regular),
-            onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+            onPressed: () => pushNoAnim(context, const SettingsScreen()),
           ),
         ],
         bottom: const PreferredSize(
@@ -288,6 +277,11 @@ class _RoomPageState extends State<_RoomPage> {
           inputTextCursorColor: Colors.black,
           inputBorderRadius: BorderRadius.all(Radius.circular(16)),
           inputPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          userNameTextStyle: TextStyle(
+            color: kBrandPurple,
+            fontWeight: FontWeight.w600,
+          ),
+          userAvatarNameColors: <Color>[kBrandPurple],
         ),
         customMessageBuilder: (types.CustomMessage m, {required int messageWidth}) {
           final meta = m.metadata ?? {};
@@ -300,9 +294,9 @@ class _RoomPageState extends State<_RoomPage> {
               width: messageWidth.toDouble(),
               constraints: const BoxConstraints(minHeight: 60),
               decoration: BoxDecoration(
-                color: const Color(0xFFF6F7FA),
+                color: Color(0xFFF6F7FA),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(color: Color(0xFFE5E7EB)),
               ),
               padding: const EdgeInsets.all(8),
               child: Row(
@@ -342,10 +336,3 @@ class _RoomPageState extends State<_RoomPage> {
     );
   }
 }
-
-PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      transitionsBuilder: (_, __, ___, child) => child,
-    );

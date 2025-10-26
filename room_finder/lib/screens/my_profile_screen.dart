@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../components/custom_styles.dart';
 import '../components/custom_error_message.dart';
+import '../components/no_transition.dart';
 import 'settings_screen.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
@@ -354,7 +355,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
           actions: [
             IconButton(
               icon: const Icon(FluentIcons.settings_24_regular),
-              onPressed: () => Navigator.push(context, _noAnimRoute(const SettingsScreen())),
+              onPressed: () => pushNoAnim(context, const SettingsScreen()),
             ),
           ],
           bottom: const PreferredSize(
@@ -363,7 +364,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
           ),
         ),
         body: user == null
-            // Logged-out view (kept)
+            // Logged-out view (consistent buttons + no-transition)
             ? _loggedOut(context)
             : RefreshIndicator(
                 onRefresh: () async {
@@ -408,7 +409,7 @@ class _YourProfileScreenState extends State<YourProfileScreen>
                                 ),
                               ),
                             ),
-                            // Name + age overlay (same look & placement as elsewhere)
+                            // Name + age overlay
                             if (nameAge.trim().isNotEmpty)
                               Positioned(
                                 left: 16,
@@ -540,37 +541,33 @@ class _YourProfileScreenState extends State<YourProfileScreen>
     );
   }
 
-  // Logged-out content (kept)
+  // Logged-out content (consistent buttons + no-transition)
   Widget _loggedOut(BuildContext ctx) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
               width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                child: const Text('Log ind'),
+              child: CustomButtonContainer(
+                child: ElevatedButton(
+                  style: customElevatedButtonStyle(),
+                  onPressed: () => pushNoAnim(ctx, const LoginScreen()),
+                  child: const Text('Log ind'),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: 200,
-              child: ElevatedButton(
-                style: customElevatedButtonStyle(),
-                onPressed: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => const CreateAccountScreen())),
-                child: const Text('Opret profil'),
+              child: CustomButtonContainer(
+                child: ElevatedButton(
+                  style: customElevatedButtonStyle(),
+                  onPressed: () => pushNoAnim(ctx, const CreateAccountScreen()),
+                  child: const Text('Opret profil'),
+                ),
               ),
             ),
           ],
         ),
       );
 }
-
-// No-animation route helper
-PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      transitionsBuilder: (_, __, ___, child) => child,
-    );
