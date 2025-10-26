@@ -1,4 +1,3 @@
-// lib/screens/chat_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,10 +5,13 @@ import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../components/custom_styles.dart';
 import 'log_ind_screen.dart';
 import 'opret_profil_screen.dart';
+import 'mere_information_lejlighed.dart';
+import 'mere_information_ansøgning.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key, this.room});
@@ -60,8 +62,6 @@ class ChatScreen extends StatelessWidget {
       );
 }
 
-/* ───────────────────────────────────────── Rooms list ───────────────────────────────────────── */
-
 class _RoomsPage extends StatelessWidget {
   const _RoomsPage({required this.currentUser});
   final User currentUser;
@@ -100,6 +100,11 @@ class _RoomsPage extends StatelessWidget {
               final last = room.lastMessages?.isNotEmpty == true ? room.lastMessages!.last : null;
               String subtitle = '';
               if (last is types.TextMessage) subtitle = last.text;
+              if (last is types.CustomMessage) {
+                final m = last.metadata ?? {};
+                final t = (m['title'] ?? '').toString();
+                subtitle = t.isEmpty ? 'Vedhæftning' : t;
+              }
               final time = last != null && last.createdAt != null
                   ? DateFormat.Hm('da').format(DateTime.fromMillisecondsSinceEpoch(last.createdAt!))
                   : '';
@@ -179,8 +184,6 @@ class _RoomsPage extends StatelessWidget {
   }
 }
 
-/* ───────────────────────────────────────────────── Single room ───────────────────────────────────────────────── */
-
 class _RoomPage extends StatefulWidget {
   const _RoomPage({required this.room, required this.currentUser});
   final types.Room room;
@@ -218,6 +221,20 @@ class _RoomPageState extends State<_RoomPage> {
     super.dispose();
   }
 
+  Future<void> _openAttachment(Map<String, dynamic> meta) async {
+    final collection = meta['collection']?.toString();
+    final id = meta['id']?.toString();
+    if (collection == null || id == null) return;
+    final snap = await FirebaseFirestore.instance.collection(collection).doc(id).get();
+    if (!mounted || !snap.exists) return;
+    final d = snap.data()!;
+    if (collection == 'apartments') {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationScreen(data: d, parentCollection: collection, parentId: id)));
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => MoreInformationApplicationScreen(data: d, parentCollection: collection, parentId: id)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const hairline = Color(0xFFF1F5F9);
@@ -252,6 +269,52 @@ class _RoomPageState extends State<_RoomPage> {
           inputBorderRadius: BorderRadius.all(Radius.circular(16)),
           inputPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         ),
+        customMessageBuilder: (types.CustomMessage m, {required int messageWidth}) {
+          final meta = m.metadata ?? {};
+          final img = (meta['imageUrl'] ?? '').toString();
+          final title = (meta['title'] ?? '').toString();
+          final subtitle = (meta['subtitle'] ?? '').toString();
+          return InkWell(
+            onTap: () => _openAttachment(Map<String, dynamic>.from(meta)),
+            child: Container(
+              width: messageWidth.toDouble(),
+              constraints: const BoxConstraints(minHeight: 60),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF6F7FA),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: img.isEmpty
+                        ? Container(width: 64, height: 64, color: const Color(0xFFE5E7EB))
+                        : Image.network(img, width: 64, height: 64, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title.isEmpty ? 'Vedhæftning' : title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        if (subtitle.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.chevron_right, size: 18, color: Colors.black45),
+                ],
+              ),
+            ),
+          );
+        },
         onSendPressed: (types.PartialText msg) => FirebaseChatCore.instance.sendMessage(msg, widget.room.id),
         onEndReached: _loadMore,
         onEndReachedThreshold: 0.7,

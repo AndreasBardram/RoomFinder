@@ -12,7 +12,7 @@ import '../utils/navigation.dart';
 
 class MoreInformationApplicationScreen extends StatelessWidget {
   final Map<String, dynamic> data;
-  final String parentCollection; // 'applications'
+  final String parentCollection;
   final String parentId;
 
   const MoreInformationApplicationScreen({
@@ -33,15 +33,35 @@ class MoreInformationApplicationScreen extends StatelessWidget {
     return q.docs.map((d) => (d.data()['url'] as String)).toList();
   }
 
+  Future<List<String>> _thumbsFor(String collection, String id) async {
+    final q = await FirebaseFirestore.instance
+        .collection('images')
+        .where('parentCollection', isEqualTo: collection)
+        .where('parentId', isEqualTo: id)
+        .orderBy('index')
+        .limit(3)
+        .get();
+    return q.docs.map((d) => (d.data()['url'] as String)).toList();
+  }
+
+  Future<String?> _firstImageUrl(String collection, String id) async {
+    final q = await FirebaseFirestore.instance
+        .collection('images')
+        .where('parentCollection', isEqualTo: collection)
+        .where('parentId', isEqualTo: id)
+        .orderBy('index')
+        .limit(1)
+        .get();
+    if (q.docs.isEmpty) return null;
+    return (q.docs.first.data()['url'] as String);
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = (data['title'] ?? 'Uden titel').toString();
-    // Applications in your app use 'area' (not 'location')
     final location = (data['area'] ?? data['location'] ?? '').toString();
-
     final dynamic budgetRaw = data['budget'] ?? data['price'];
     final double? budget = (budgetRaw is num) ? budgetRaw.toDouble() : null;
-
     final String description = (data['description'] ?? '').toString();
 
     DateTime? created;
@@ -92,26 +112,17 @@ class MoreInformationApplicationScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Uploader quick card
                 if (ownerUid != null) _UploaderTile(ownerUid: ownerUid),
-
                 const SizedBox(height: 12),
-
                 if (location.isNotEmpty)
                   Text(location, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 if (location.isNotEmpty) const SizedBox(height: 10),
-
                 if (budgetStr != null)
                   Text('DKK $budgetStr', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-
                 const SizedBox(height: 12),
-
                 Text('Oprettet: $createdStr', style: const TextStyle(fontSize: 12, color: Color(0xFF9AA3B2))),
-
                 const SizedBox(height: 16),
                 if (description.isNotEmpty) Text(description, style: const TextStyle(fontSize: 15)),
-
                 const SizedBox(height: 24),
                 _contactButton(context),
                 const SizedBox(height: 8),
@@ -156,12 +167,12 @@ class MoreInformationApplicationScreen extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
-          onPressed: () => _startChat(context),
+          onPressed: () => _startChatWithOptionalAttachment(context),
           child: const Text('Send besked'),
         ),
       );
 
-  Future<void> _startChat(BuildContext context) async {
+  Future<void> _startChatWithOptionalAttachment(BuildContext context) async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
 
@@ -177,6 +188,7 @@ class MoreInformationApplicationScreen extends StatelessWidget {
       return;
     }
 
+    final selection = await _selectAttachment(context, collection: 'apartments', title: 'Vedhæft et af dine opslag?');
     final d = ownerSnap.data()!;
     final owner = types.User(
       id: ownerUid,
@@ -186,8 +198,118 @@ class MoreInformationApplicationScreen extends StatelessWidget {
       metadata: d,
     );
     final room = await FirebaseChatCore.instance.createRoom(owner);
+
+    if (selection != null) {
+      final docId = selection['id'] as String;
+      final sel = selection['data'] as Map<String, dynamic>;
+      final t = (sel['title'] ?? '').toString();
+      final meta = {
+        'collection': 'apartments',
+        'id': docId,
+        'title': t,
+        'subtitle': _aptSubtitle(sel),
+        'imageUrl': await _firstImageUrl('apartments', docId) ?? '',
+      };
+      FirebaseChatCore.instance.sendMessage(types.PartialCustom(metadata: meta), room.id);
+    }
+
     if (!context.mounted) return;
     Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+  }
+
+  Future<Map<String, dynamic>?> _selectAttachment(BuildContext context, {required String collection, required String title}) async {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return null;
+    final qs = await FirebaseFirestore.instance.collection(collection).where('ownedBy', isEqualTo: me.uid).get();
+    if (qs.docs.isEmpty) return null;
+
+    return await showModalBottomSheet<Map<String, dynamic>?>(
+      context: context,
+      isScrollControlled: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: qs.docs.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final doc = qs.docs[i];
+                    final d = doc.data();
+                    final t = (d['title'] ?? '').toString();
+                    final subtitle = collection == 'apartments' ? _aptSubtitle(d) : _appSubtitle(d);
+                    return FutureBuilder<List<String>>(
+                      future: _thumbsFor(collection, doc.id),
+                      builder: (c, s) {
+                        final urls = s.data ?? const <String>[];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          leading: _ThumbRow(urls: urls),
+                          title: Text(t.isEmpty ? '(Uden titel)' : t, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.pop(context, {'id': doc.id, 'data': d}),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Fortsæt uden vedhæftning')),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _aptSubtitle(Map<String, dynamic> d) {
+    final price = ((d['price'] ?? 0) as num).toDouble();
+    final size = ((d['size'] ?? 0) as num).toDouble();
+    final priceStr = NumberFormat.decimalPattern('da_DK').format(price.round());
+    final sizeStr = size.toStringAsFixed(0);
+    return 'DKK $priceStr • ${sizeStr} m²';
+  }
+
+  String _appSubtitle(Map<String, dynamic> d) {
+    final budget = ((d['budget'] ?? 0) as num).toDouble();
+    final budgetStr = NumberFormat.decimalPattern('da_DK').format(budget.round());
+    return 'Budget: DKK $budgetStr';
+  }
+}
+
+class _ThumbRow extends StatelessWidget {
+  final List<String> urls;
+  const _ThumbRow({required this.urls});
+  @override
+  Widget build(BuildContext context) {
+    final u = urls.take(3).toList();
+    if (u.isEmpty) {
+      return Container(width: 72, height: 48, color: const Color(0xFFE5E7EB));
+    }
+    return SizedBox(
+      width: 84,
+      child: Row(
+        children: List.generate(u.length, (i) {
+          return Padding(
+            padding: EdgeInsets.only(right: i == u.length - 1 ? 0 : 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(u[i], width: 36, height: 36, fit: BoxFit.cover),
+            ),
+          );
+        }),
+      ),
+    );
   }
 }
 
