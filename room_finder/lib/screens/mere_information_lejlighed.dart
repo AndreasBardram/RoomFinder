@@ -7,11 +7,12 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'chat_screen.dart';
+import 'view_profile_screen.dart';
 import '../utils/navigation.dart';
 
 class MoreInformationScreen extends StatelessWidget {
   final Map<String, dynamic> data;
-  final String parentCollection;
+  final String parentCollection; // 'apartments'
   final String parentId;
 
   const MoreInformationScreen({
@@ -21,7 +22,6 @@ class MoreInformationScreen extends StatelessWidget {
     required this.parentId,
   });
 
-  // ---- image fetching from Firestore/Storage ----
   Future<List<String>> _fetchImageUrls() async {
     final q = await FirebaseFirestore.instance
         .collection('images')
@@ -51,22 +51,19 @@ class MoreInformationScreen extends StatelessWidget {
         : 'Ukendt tidspunkt';
 
     final priceStr = NumberFormat.decimalPattern('da_DK').format(price.round());
+    final ownerUid = data['ownedBy'] as String?;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        centerTitle: true, // visually centered between back and right side
+        centerTitle: true,
         titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
         iconTheme: const IconThemeData(color: Colors.black),
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        // Invisible action to balance the default leading back button width
         actions: const [
-          Opacity(
-            opacity: 0,
-            child: IconButton(onPressed: null, icon: Icon(Icons.arrow_back)),
-          ),
+          Opacity(opacity: 0, child: IconButton(onPressed: null, icon: Icon(Icons.arrow_back))),
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -85,13 +82,20 @@ class MoreInformationScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AspectRatio(
-                  aspectRatio: 4 / 3, // a bit taller than 16:9
+                  aspectRatio: 4 / 3,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: loading ? const _SkeletonImage() : _UrlImagesPager(urls: images),
                   ),
                 ),
-                const SizedBox(height: 16),
+
+                const SizedBox(height: 12),
+
+                // Uploader quick card
+                if (ownerUid != null) _UploaderTile(ownerUid: ownerUid),
+
+                const SizedBox(height: 12),
+
                 Text(location, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 Text('DKK $priceStr', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
@@ -112,7 +116,6 @@ class MoreInformationScreen extends StatelessWidget {
           );
         },
       ),
-      // Neutral bottom nav (no animation on tap)
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: 0,
@@ -129,22 +132,10 @@ class MoreInformationScreen extends StatelessWidget {
         selectedIconTheme: const IconThemeData(size: 25),
         unselectedIconTheme: const IconThemeData(size: 25),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.search_24_regular),
-            label: 'Find Værelse',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.add_24_regular),
-            label: 'Opret',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.chat_24_regular),
-            label: 'Chat',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(FluentIcons.person_24_regular),
-            label: 'Min Profil',
-          ),
+          BottomNavigationBarItem(icon: Icon(FluentIcons.search_24_regular), label: 'Find Værelse'),
+          BottomNavigationBarItem(icon: Icon(FluentIcons.add_24_regular), label: 'Opret'),
+          BottomNavigationBarItem(icon: Icon(FluentIcons.chat_24_regular), label: 'Chat'),
+          BottomNavigationBarItem(icon: Icon(FluentIcons.person_24_regular), label: 'Min Profil'),
         ],
       ),
     );
@@ -187,7 +178,6 @@ class MoreInformationScreen extends StatelessWidget {
     }
     final ownerSnap = await FirebaseFirestore.instance.collection('users').doc(ownerUid).get();
     if (!ownerSnap.exists) {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Brugerprofil ikke fundet.')));
       return;
     }
@@ -202,6 +192,109 @@ class MoreInformationScreen extends StatelessWidget {
     final room = await FirebaseChatCore.instance.createRoom(owner);
     if (!context.mounted) return;
     Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+  }
+}
+
+class _UploaderTile extends StatelessWidget {
+  final String ownerUid;
+  const _UploaderTile({required this.ownerUid});
+
+  int? _ageFromBirthDate(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return null;
+    final now = DateTime.now();
+    var y = now.year - dt.year;
+    if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) y--;
+    return y;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('users').doc(ownerUid).get(),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const _UploaderSkeleton();
+        }
+        final d = snap.data?.data();
+        if (d == null) return const SizedBox.shrink();
+
+        final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
+        final name = '${(d['firstName'] ?? '').toString()} ${(d['lastName'] ?? '').toString()}'.trim();
+        final age = _ageFromBirthDate((meta['birthDate'] ?? d['birthDate'])?.toString());
+        final profileType = (meta['profileType'] ?? '').toString();
+        final img = (d['imageUrl'] ?? '').toString();
+
+        final sub = [
+          if (profileType.isNotEmpty) (profileType == 'landlord' ? 'Udlejer' : 'Lejer'),
+          if (age != null) '$age år',
+        ].join(' • ');
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ViewProfileScreen(userId: ownerUid)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFE5E7EB),
+                backgroundImage: img.isNotEmpty ? NetworkImage(img) : null,
+                child: img.isEmpty ? const Icon(Icons.person, color: Colors.white) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name.isEmpty ? 'Profil' : name,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (sub.isNotEmpty)
+                      Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.black54),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UploaderSkeleton extends StatelessWidget {
+  const _UploaderSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE5E7EB)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              _SkelBox(w: 120, h: 12),
+              SizedBox(height: 6),
+              _SkelBox(w: 80, h: 10),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkelBox extends StatelessWidget {
+  final double w, h;
+  const _SkelBox({required this.w, required this.h});
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: w, height: h, decoration: BoxDecoration(color: Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(6)));
   }
 }
 
@@ -275,7 +368,6 @@ class _UrlImagesPagerState extends State<_UrlImagesPager> {
   }
 }
 
-// Compact, consistent nav button (28x28, icon 16)
 class _NavButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -301,14 +393,12 @@ class _NavButton extends StatelessWidget {
 
 class _SkeletonImage extends StatelessWidget {
   const _SkeletonImage();
-
   @override
   Widget build(BuildContext context) {
     return const ColoredBox(color: Color(0xFFE5E7EB));
   }
 }
 
-// No-animation route helper
 PageRoute _noAnimRoute(Widget page) => PageRouteBuilder(
       pageBuilder: (_, __, ___) => page,
       transitionDuration: Duration.zero,

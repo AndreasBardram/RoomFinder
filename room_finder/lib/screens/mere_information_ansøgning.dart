@@ -7,17 +7,18 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'chat_screen.dart';
+import 'view_profile_screen.dart';
 import '../utils/navigation.dart';
 
 class MoreInformationApplicationScreen extends StatelessWidget {
   final Map<String, dynamic> data;
-  final String parentCollection;
+  final String parentCollection; // 'applications'
   final String parentId;
 
   const MoreInformationApplicationScreen({
     super.key,
     required this.data,
-    required this.parentCollection, // pass 'applications'
+    required this.parentCollection,
     required this.parentId,
   });
 
@@ -35,14 +36,12 @@ class MoreInformationApplicationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = (data['title'] ?? 'Uden titel').toString();
-    final location = (data['location'] ?? '').toString();
-    // Many apps store "budget"; fall back to "price" if that’s what you saved.
+    // Applications in your app use 'area' (not 'location')
+    final location = (data['area'] ?? data['location'] ?? '').toString();
+
     final dynamic budgetRaw = data['budget'] ?? data['price'];
     final double? budget = (budgetRaw is num) ? budgetRaw.toDouble() : null;
 
-    final double? size = (data['size'] is num) ? (data['size'] as num).toDouble() : null;
-    final String period = (data['period'] ?? '').toString();
-    final int? roommates = (data['roommates'] is num) ? (data['roommates'] as num).toInt() : null;
     final String description = (data['description'] ?? '').toString();
 
     DateTime? created;
@@ -52,7 +51,10 @@ class MoreInformationApplicationScreen extends StatelessWidget {
         ? DateFormat('d. MMMM y • HH:mm', 'da_DK').format(created.toLocal())
         : 'Ukendt tidspunkt';
 
-    final budgetStr = (budget != null) ? NumberFormat.decimalPattern('da_DK').format(budget.round()) : null;
+    final budgetStr =
+        (budget != null) ? NumberFormat.decimalPattern('da_DK').format(budget.round()) : null;
+
+    final ownerUid = data['ownedBy'] as String?;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -89,7 +91,12 @@ class MoreInformationApplicationScreen extends StatelessWidget {
                     child: loading ? const _SkeletonImage() : _UrlImagesPager(urls: images),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                // Uploader quick card
+                if (ownerUid != null) _UploaderTile(ownerUid: ownerUid),
+
+                const SizedBox(height: 12),
 
                 if (location.isNotEmpty)
                   Text(location, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
@@ -97,18 +104,9 @@ class MoreInformationApplicationScreen extends StatelessWidget {
 
                 if (budgetStr != null)
                   Text('DKK $budgetStr', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                if (budgetStr != null) const SizedBox(height: 12),
 
-                if (size != null)
-                  _iconRow(const Icon(FluentIcons.ruler_24_regular, size: 18, color: Colors.black87), '${size.toStringAsFixed(0)} m²'),
+                const SizedBox(height: 12),
 
-                if (period.isNotEmpty)
-                  _iconRow(const Icon(FluentIcons.calendar_24_regular, size: 18, color: Colors.black87), 'Periode: $period'),
-
-                if (roommates != null)
-                  _iconRow(const Icon(FluentIcons.people_24_regular, size: 18, color: Colors.black87), 'Roommates: $roommates'),
-
-                const SizedBox(height: 8),
                 Text('Oprettet: $createdStr', style: const TextStyle(fontSize: 12, color: Color(0xFF9AA3B2))),
 
                 const SizedBox(height: 16),
@@ -147,11 +145,6 @@ class MoreInformationApplicationScreen extends StatelessWidget {
     );
   }
 
-  Widget _iconRow(Widget icon, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(children: [icon, const SizedBox(width: 8), Flexible(child: Text(text, style: const TextStyle(fontSize: 15)))]),
-      );
-
   Widget _contactButton(BuildContext context) => SizedBox(
         width: double.infinity,
         child: ElevatedButton(
@@ -172,7 +165,6 @@ class MoreInformationApplicationScreen extends StatelessWidget {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
 
-    // In applications, 'ownedBy' should be the applicant’s uid
     final ownerUid = data['ownedBy'] as String?;
     if (ownerUid == null || ownerUid == me.uid) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Du kan ikke chatte med dig selv.')));
@@ -181,7 +173,6 @@ class MoreInformationApplicationScreen extends StatelessWidget {
 
     final ownerSnap = await FirebaseFirestore.instance.collection('users').doc(ownerUid).get();
     if (!ownerSnap.exists) {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Brugerprofil ikke fundet.')));
       return;
     }
@@ -197,6 +188,109 @@ class MoreInformationApplicationScreen extends StatelessWidget {
     final room = await FirebaseChatCore.instance.createRoom(owner);
     if (!context.mounted) return;
     Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(room: room)));
+  }
+}
+
+class _UploaderTile extends StatelessWidget {
+  final String ownerUid;
+  const _UploaderTile({required this.ownerUid});
+
+  int? _ageFromBirthDate(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return null;
+    final now = DateTime.now();
+    var y = now.year - dt.year;
+    if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) y--;
+    return y;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('users').doc(ownerUid).get(),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const _UploaderSkeleton();
+        }
+        final d = snap.data?.data();
+        if (d == null) return const SizedBox.shrink();
+
+        final meta = (d['metadata'] as Map<String, dynamic>?) ?? {};
+        final name = '${(d['firstName'] ?? '').toString()} ${(d['lastName'] ?? '').toString()}'.trim();
+        final age = _ageFromBirthDate((meta['birthDate'] ?? d['birthDate'])?.toString());
+        final profileType = (meta['profileType'] ?? '').toString();
+        final img = (d['imageUrl'] ?? '').toString();
+
+        final sub = [
+          if (profileType.isNotEmpty) (profileType == 'landlord' ? 'Udlejer' : 'Lejer'),
+          if (age != null) '$age år',
+        ].join(' • ');
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ViewProfileScreen(userId: ownerUid)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFE5E7EB),
+                backgroundImage: img.isNotEmpty ? NetworkImage(img) : null,
+                child: img.isEmpty ? const Icon(Icons.person, color: Colors.white) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name.isEmpty ? 'Profil' : name,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (sub.isNotEmpty)
+                      Text(sub, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.black54),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UploaderSkeleton extends StatelessWidget {
+  const _UploaderSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const CircleAvatar(radius: 20, backgroundColor: Color(0xFFE5E7EB)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              _SkelBox(w: 120, h: 12),
+              SizedBox(height: 6),
+              _SkelBox(w: 80, h: 10),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkelBox extends StatelessWidget {
+  final double w, h;
+  const _SkelBox({required this.w, required this.h});
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: w, height: h, decoration: BoxDecoration(color: Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(6)));
   }
 }
 
@@ -283,25 +377,13 @@ class _NavButton extends StatelessWidget {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onPressed,
-        child: const SizedBox(
+        child: SizedBox(
           width: 28,
           height: 28,
-          child: Center(child: Icon(Icons.chevron_right, size: 16, color: Colors.white)), // icon is overridden below via IconTheme
+          child: Center(child: Icon(icon, size: 16, color: Colors.white)),
         ),
       ),
     );
-  }
-}
-
-// Override icon inside SizedBox to the requested one
-class IconTheme extends StatelessWidget {
-  final IconData icon;
-  final Widget child;
-  const IconTheme({required this.icon, required this.child, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(icon, size: 16, color: Colors.white);
   }
 }
 
