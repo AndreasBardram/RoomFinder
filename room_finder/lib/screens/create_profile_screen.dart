@@ -60,8 +60,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               onSurface: Colors.black,
             ),
             // Rounded dialog corners
-            dialogTheme: const DialogTheme(
-              shape: RoundedRectangleBorder(
+            dialogTheme: const DialogThemeData(
+                shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
             ),
