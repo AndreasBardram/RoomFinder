@@ -60,9 +60,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               onSurface: Colors.black,
             ),
             // Rounded dialog corners
-            dialogTheme: const DialogThemeData(
-                shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
+            dialogTheme: const DialogTheme(
+              shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
             ),
             // Keep header default; just make the overall picker rounded
