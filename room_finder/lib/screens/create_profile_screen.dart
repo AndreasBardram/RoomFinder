@@ -3,10 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:intl/intl.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/navigation.dart';
 import '../components/no_transition.dart';
 import 'welcome_screen.dart';
+
+const _termsUrl = 'https://www.freeprivacypolicy.com/live/1399525e-02bf-43d7-acc3-e819576e42d9';
+const _privacyUrl = 'https://www.freeprivacypolicy.com/live/106be54b-71ab-4ca5-9790-093088b098bf';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -27,6 +30,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _showForm = false;
   DateTime? _birthDate;
 
+  bool _acceptedTerms = false;
+  bool _creating = false;
+
   @override
   void dispose() {
     _firstNameController.dispose();
@@ -36,6 +42,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openUrl(String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.inAppBrowserView);
+    if (!ok && mounted) _showMessage('Kunne ikke åbne link.');
   }
 
   Future<void> _pickBirthDate() async {
@@ -48,30 +59,25 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       helpText: 'Vælg fødselsdato',
       cancelText: 'Annuller',
       confirmText: 'OK',
-      // Keep header look default; only round corners + black accent
       builder: (ctx, child) {
         final base = Theme.of(ctx);
         return Theme(
           data: base.copyWith(
-            // Use black as accent for selected day etc.
             colorScheme: base.colorScheme.copyWith(
               primary: Colors.black,
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
-            // Rounded dialog corners
             dialogTheme: const DialogTheme(
               shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(16)),
+                borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
             ),
-            // Keep header default; just make the overall picker rounded
             datePickerTheme: const DatePickerThemeData(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
             ),
-            // Buttons in footer stay black text
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 foregroundColor: Colors.black,
@@ -92,11 +98,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   Future<void> _createAccount() async {
+    if (_creating) return;
+
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+
     if (_role == null) {
       _showMessage('Vælg profiltype.');
       return;
@@ -105,10 +114,23 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       _showMessage('Udfyld alle felter.');
       return;
     }
+    if (!_acceptedTerms) {
+      _showMessage('Du skal acceptere vilkår og privatlivspolitik.');
+      return;
+    }
+
+    setState(() => _creating = true);
+
     try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
       final uid = cred.user!.uid;
       final birthDateStr = DateFormat('yyyy-MM-dd').format(_birthDate!);
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+
       await FirebaseChatCore.instance.createUserInFirestore(
         types.User(
           id: uid,
@@ -120,15 +142,22 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             'birthDate': birthDateStr,
             'email': email,
             'profileType': _role,
+            'termsAcceptedAt': nowIso,
+            'privacyAcceptedAt': nowIso,
+            'termsUrl': _termsUrl,
+            'privacyUrl': _privacyUrl,
           },
         ),
       );
+
       if (!mounted) return;
       await pushReplacementNoAnim(context, const MainScreen(initialIndex: 0));
     } on FirebaseAuthException catch (e) {
       _showMessage('Fejl: ${e.message}');
     } catch (_) {
       _showMessage('Uventet fejl.');
+    } finally {
+      if (mounted) setState(() => _creating = false);
     }
   }
 
@@ -142,7 +171,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       hintStyle: const TextStyle(color: Color(0xFF8A93A6), fontSize: 14),
       filled: true,
       fillColor: const Color(0xFFF6F7FA),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
@@ -160,7 +192,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         field,
       ],
@@ -195,9 +230,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: const Color(0xFF8A93A6), fontSize: 13)),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF8A93A6),
+                          fontSize: 13,
+                        ),
+                  ),
                 ],
               ),
             ),
@@ -232,7 +279,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         Center(
           child: Text(
             'Opret profil',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -266,6 +316,65 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _consent() {
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE6E8EF), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: _acceptedTerms,
+            onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+            activeColor: Colors.black,
+            checkColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFE6E8EF)),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('Jeg accepterer ', style: textStyle),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: Colors.black,
+                    textStyle: textStyle?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  onPressed: () => _openUrl(_termsUrl),
+                  child: const Text('Vilkår for brug'),
+                ),
+                Text(' og ', style: textStyle),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: Colors.black,
+                    textStyle: textStyle?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  onPressed: () => _openUrl(_privacyUrl),
+                  child: const Text('Privatlivspolitik'),
+                ),
+                Text('.', style: textStyle),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -372,18 +481,19 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             onChanged: (v) => setState(() => _role = v),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
             icon: const Icon(Icons.expand_more, color: Colors.black87),
-            // Match the fields' light grey background for the popup menu
             dropdownColor: const Color(0xFFF6F7FA),
             borderRadius: BorderRadius.circular(14),
           ),
         ),
+        const SizedBox(height: 16),
+        _consent(),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             style: _primaryBtn,
-            onPressed: _createAccount,
-            child: const Text('Opret profil'),
+            onPressed: _creating ? null : _createAccount,
+            child: Text(_creating ? 'Opretter...' : 'Opret profil'),
           ),
         ),
       ],

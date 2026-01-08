@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../components/custom_error_message.dart';
 import '../utils/navigation.dart';
@@ -10,6 +11,10 @@ import 'create_profile_screen.dart';
 import 'welcome_screen.dart';
 
 const _hairline = Color(0xFFF1F5F9);
+
+const _supportUrl = 'https://docs.google.com/forms/d/e/1FAIpQLSckbsBVAXV8Gzs-MtQhdT19E4vVfmoOw0NrAU7UzBDLebj4nA/viewform';
+const _privacyUrl ='https://www.freeprivacypolicy.com/live/106be54b-71ab-4ca5-9790-093088b098bf';
+const _termsUrl = 'https://www.freeprivacypolicy.com/live/1399525e-02bf-43d7-acc3-e819576e42d9';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -56,6 +61,18 @@ class SettingsScreen extends StatelessWidget {
           content: CustomErrorMessage(message: msg),
         ),
       );
+  }
+
+  Future<void> _openUrl(BuildContext context, String url) async {
+    if (url.trim().isEmpty) {
+      _toast(context, 'Mangler link.');
+      return;
+    }
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.inAppBrowserView,
+    );
+    if (!ok && context.mounted) _toast(context, 'Kunne ikke åbne link.');
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -163,7 +180,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Er du sikker? Dette sletter din konto permanent.',
-                style: TextStyle(fontSize: 14, color: Colors.grey[800], height: 1.35),
+                style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.35),
               ),
               const SizedBox(height: 10),
               Container(
@@ -174,9 +191,9 @@ class SettingsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFE6E8EF), width: 1),
                 ),
-                child: Text(
+                child: const Text(
                   '• Du mister adgang til din profil\n• Handling kan ikke fortrydes',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[800], height: 1.4),
+                  style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.4),
                 ),
               ),
               const SizedBox(height: 16),
@@ -227,9 +244,9 @@ class SettingsScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
-                Text(
+                const Text(
                   'Af sikkerhedshensyn skal du indtaste dit password for at slette kontoen.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[800], height: 1.35),
+                  style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.35),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -304,14 +321,19 @@ class SettingsScreen extends StatelessWidget {
 
     final legalItems = <_SettingItem>[
       _SettingItem(
+        label: 'Support',
+        icon: FluentIcons.mail_24_regular,
+        onTap: () => _openUrl(context, _supportUrl),
+      ),
+      _SettingItem(
         label: 'Privatlivspolitik',
         icon: FluentIcons.shield_24_regular,
-        onTap: () => _toast(context, 'Privatlivspolitik'),
+        onTap: () => _openUrl(context, _privacyUrl),
       ),
       _SettingItem(
         label: 'Vilkår for brug',
         icon: FluentIcons.document_24_regular,
-        onTap: () => _toast(context, 'Vilkår for brug'),
+        onTap: () => _openUrl(context, _termsUrl),
       ),
     ];
 
