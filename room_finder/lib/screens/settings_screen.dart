@@ -9,6 +9,7 @@ import '../utils/navigation.dart';
 import 'log_in_screen.dart';
 import 'create_profile_screen.dart';
 import 'welcome_screen.dart';
+import 'blocked_users_screen.dart';
 
 const _hairline = Color(0xFFF1F5F9);
 
@@ -302,6 +303,12 @@ class SettingsScreen extends StatelessWidget {
         icon: FluentIcons.add_24_regular,
         onTap: () => Navigator.push(context, _noAnimRoute(const CreateAccountScreen())),
       ),
+      if (loggedIn)
+        _SettingItem(
+          label: 'Blokerede brugere',
+          icon: FluentIcons.prohibited_24_regular,
+          onTap: () => Navigator.push(context, _noAnimRoute(BlockedUsersScreen())),
+        ),
       if (loggedIn)
         _SettingItem(
           label: 'Log ud',
