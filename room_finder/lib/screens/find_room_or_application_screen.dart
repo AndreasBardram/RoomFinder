@@ -342,58 +342,57 @@ class _FindRoommatesScreenState extends State<FindRoommatesScreen> {
                   builder: (ctx, imgSnap) {
                     final waiting = imgSnap.connectionState == ConnectionState.waiting && (imgSnap.data == null);
                     final images = imgSnap.data ?? const <String>[];
-                    return Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 2,
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 200),
-                              child: waiting
-                                  ? const _SkeletonImage()
-                                  : GestureDetector(
-                                      onTap: () => pushNoAnim( // ← no transition
-                                        context,
-                                        MoreInformationScreen(
-                                          data: d,
-                                          parentCollection: 'apartments',
-                                          parentId: doc.id,
-                                        ),
-                                      ),
-                                      child: _UrlImagesPager(urls: images),
-                                    ),
+                    return InkWell(
+                      onTap: () => pushNoAnim(
+                        context,
+                        MoreInformationScreen(
+                          data: d,
+                          parentCollection: 'apartments',
+                          parentId: doc.id,
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 2,
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: waiting ? const _SkeletonImage() : _UrlImagesPager(urls: images),
+                              ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted)),
-                                    Text('${(d['size'] ?? 0).toString()} m²', style: _subMuted),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(children: [Expanded(child: Text('Periode: ${d['period'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted))]),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Expanded(child: Text('Roommates: ${((d['roommates'] ?? 0) as num).toInt()}', style: _subMuted)),
-                                    Text('${(d['price'] ?? 0).toString()} DKK', style: _subStrong),
-                                  ],
-                                ),
-                              ],
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(d['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: _titleStrong),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(child: Text(d['location'] ?? 'Ukendt', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted)),
+                                      Text('${(d['size'] ?? 0).toString()} m²', style: _subMuted),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(children: [Expanded(child: Text('Periode: ${d['period'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _subMuted))]),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Expanded(child: Text('Roommates: ${((d['roommates'] ?? 0) as num).toInt()}', style: _subMuted)),
+                                      Text('${(d['price'] ?? 0).toString()} DKK', style: _subStrong),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },

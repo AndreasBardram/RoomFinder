@@ -297,16 +297,24 @@ class _ThumbRow extends StatelessWidget {
     }
     return SizedBox(
       width: 84,
-      child: Row(
-        children: List.generate(u.length, (i) {
-          return Padding(
-            padding: EdgeInsets.only(right: i == u.length - 1 ? 0 : 4),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(u[i], width: 36, height: 36, fit: BoxFit.cover),
-            ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final count = u.length;
+          final gap = 4.0;
+          final rawSize = (constraints.maxWidth - gap * (count - 1)) / count;
+          final size = rawSize.clamp(0.0, 36.0);
+          return Row(
+            children: List.generate(count, (i) {
+              return Padding(
+                padding: EdgeInsets.only(right: i == count - 1 ? 0 : gap),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(u[i], width: size, height: size, fit: BoxFit.cover),
+                ),
+              );
+            }),
           );
-        }),
+        },
       ),
     );
   }
