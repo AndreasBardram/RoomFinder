@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_firebase_chat_core/flutter_firebase_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -104,8 +106,20 @@ class _RoomsPage extends StatelessWidget {
         ),
       ),
       body: StreamBuilder<List<types.Room>>(
-        stream: FirebaseChatCore.instance.rooms(),
+        stream: _roomsStream(),
         builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+          }
+          if (snap.hasError) {
+            if (kDebugMode) {
+              debugPrint('rooms stream error: ${snap.error}');
+            }
+            final msg = kDebugMode
+                ? 'Kunne ikke hente samtaler.\n${snap.error}'
+                : 'Kunne ikke hente samtaler.';
+            return Center(child: Text(msg, textAlign: TextAlign.center));
+          }
           final rooms = snap.data ?? [];
           if (rooms.isEmpty) {
             return const Center(child: Text('Ingen samtaler endnu'));
@@ -174,6 +188,127 @@ class _RoomsPage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Stream<List<types.Room>> _roomsStream() {
+    final config = FirebaseChatCore.instance.config;
+    final firestore = _chatFirestore(config);
+    return firestore
+        .collection(config.roomsCollectionName)
+        .where('userIds', arrayContains: currentUser.uid)
+        .snapshots()
+        .asyncMap((query) async {
+      final futures = query.docs.map((doc) {
+        return _roomFromDoc(
+          doc,
+          firestore: firestore,
+          usersCollection: config.usersCollectionName,
+        );
+      });
+      final rooms = await Future.wait(futures);
+      return rooms.whereType<types.Room>().toList();
+    });
+  }
+
+  FirebaseFirestore _chatFirestore(FirebaseChatCoreConfig config) {
+    if (config.firebaseAppName == null) return FirebaseFirestore.instance;
+    return FirebaseFirestore.instanceFor(app: Firebase.app(config.firebaseAppName!));
+  }
+
+  Future<types.Room?> _roomFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    required FirebaseFirestore firestore,
+    required String usersCollection,
+  }) async {
+    final data = doc.data();
+    if (data == null) return null;
+    final userIdsRaw = data['userIds'];
+    if (userIdsRaw is! List) return null;
+
+    final userIds = userIdsRaw.map((u) => u.toString()).toList();
+    final users = await Future.wait(
+      userIds.map((id) => _fetchUserSafe(firestore, usersCollection, id)),
+    );
+
+    final lastMessages = _parseLastMessages(data['lastMessages'], users);
+
+    return types.Room(
+      id: doc.id,
+      createdAt: _toMillis(data['createdAt']),
+      updatedAt: _toMillis(data['updatedAt']),
+      imageUrl: data['imageUrl']?.toString(),
+      metadata: _asMap(data['metadata']),
+      name: data['name']?.toString(),
+      type: _roomTypeFromString(data['type']?.toString()),
+      users: users,
+      lastMessages: lastMessages,
+    );
+  }
+
+  Future<types.User> _fetchUserSafe(
+    FirebaseFirestore firestore,
+    String usersCollection,
+    String userId,
+  ) async {
+    final doc = await firestore.collection(usersCollection).doc(userId).get();
+    final data = doc.data();
+    if (data == null) {
+      return types.User(id: userId, firstName: 'Slettet bruger');
+    }
+
+    final meta = _asMap(data['metadata']);
+    return types.User(
+      id: doc.id,
+      firstName: data['firstName']?.toString(),
+      lastName: data['lastName']?.toString(),
+      imageUrl: data['imageUrl']?.toString(),
+      metadata: meta,
+    );
+  }
+
+  List<types.Message>? _parseLastMessages(dynamic raw, List<types.User> users) {
+    if (raw is! List) return null;
+    final messages = <types.Message>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      final authorId = map['authorId']?.toString();
+      final author = users.firstWhere(
+        (u) => u.id == authorId,
+        orElse: () => types.User(id: authorId ?? ''),
+      );
+      map['author'] = author.toJson();
+      map['createdAt'] = _toMillis(map['createdAt']);
+      map['updatedAt'] = _toMillis(map['updatedAt']);
+      map['id'] = map['id']?.toString() ?? '';
+      try {
+        messages.add(types.Message.fromJson(map));
+      } catch (_) {}
+    }
+    return messages.isEmpty ? null : messages;
+  }
+
+  types.RoomType? _roomTypeFromString(String? value) {
+    return switch (value) {
+      'direct' => types.RoomType.direct,
+      'group' => types.RoomType.group,
+      'channel' => types.RoomType.channel,
+      _ => null,
+    };
+  }
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  int? _toMillis(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    return null;
   }
 
   Widget _avatar(types.Room room, String myId) {
